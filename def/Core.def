@@ -1,0 +1,18 @@
+/* CORE PARAMETERS */
+
+//Defining memory modes:
+// MEMORY MODES:
+// 0:   L1 miss latency
+// 1:   L2 miss latency
+// 2:   L3 miss latency
+// 3:   RUBY
+
+// SCHEDULER MODES:
+// 0:   LEVEL SCHEDULING
+// 1:   BLOCK SCHEDULING
+
+param<MEMORY_MODE,          3>  
+param<LANE_SIZE,            100>
+param<DECODE_DELAY,         2>
+param<FETCH_DELAY,          2>
+param<SCHEDULER,            0>      

@@ -1,0 +1,41 @@
+
+processors:8
+procs_per_chip:8
+L2banks:4
+memories:1
+bw_unit:10000
+
+ext_node:L1Cache:0 int_node:0 link_latency:1 bw_multiplier:64
+ext_node:L1Cache:1 int_node:1 link_latency:1 bw_multiplier:64
+ext_node:L1Cache:2 int_node:2 link_latency:1 bw_multiplier:64
+ext_node:L1Cache:3 int_node:3 link_latency:1 bw_multiplier:64
+ext_node:L1Cache:4 int_node:4 link_latency:1 bw_multiplier:64
+ext_node:L1Cache:5 int_node:5 link_latency:1 bw_multiplier:64
+ext_node:L1Cache:6 int_node:6 link_latency:1 bw_multiplier:64
+ext_node:L1Cache:7 int_node:7 link_latency:1 bw_multiplier:64
+
+ext_node:L2Cache:0 int_node:8 link_latency:1 bw_multiplier:64
+ext_node:L2Cache:1 int_node:9 link_latency:1 bw_multiplier:64
+ext_node:L2Cache:2 int_node:10 link_latency:1 bw_multiplier:64
+ext_node:L2Cache:3 int_node:11 link_latency:1 bw_multiplier:64
+
+int_node:0 int_node:8 link_latency:1 bw_multiplier:64 
+int_node:1 int_node:8 link_latency:1 bw_multiplier:64
+int_node:2 int_node:9 link_latency:1 bw_multiplier:64
+int_node:3 int_node:9 link_latency:1 bw_multiplier:64
+int_node:4 int_node:10 link_latency:1 bw_multiplier:64
+int_node:5 int_node:10 link_latency:1 bw_multiplier:64
+int_node:6 int_node:11 link_latency:1 bw_multiplier:64
+int_node:7 int_node:11 link_latency:1 bw_multiplier:64
+
+int_node:8 int_node:9 link_latency:1 bw_multiplier:32 
+int_node:9 int_node:10 link_latency:1 bw_multiplier:32 
+int_node:10 int_node:11 link_latency:1 bw_multiplier:32 
+int_node:11 int_node:8 link_latency:1 bw_multiplier:32 
+
+ext_node:Directory:0 int_node:12 link_latency:1 bw_multiplier:16
+
+int_node:8 int_node:12 link_latency:1 bw_multiplier:16
+int_node:9 int_node:12 link_latency:1 bw_multiplier:16
+int_node:10 int_node:12 link_latency:1 bw_multiplier:16
+int_node:11 int_node:12 link_latency:1 bw_multiplier:16

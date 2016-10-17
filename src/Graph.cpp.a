@@ -1,0 +1,2017 @@
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/max_cardinality_matching.hpp>
+#include <boost/graph/breadth_first_search.hpp>
+#include <boost/graph/bipartite.hpp>
+#include <boost/graph/strong_components.hpp>
+#include <boost/property_map/property_map.hpp>
+
+#include "Graph.hpp"
+
+using namespace std;
+using namespace boost;
+
+// Defining colors
+//static std::vector<uint32_t> brewer_color {0xa6cee3,0x1f78b4,0xb2df8a,0x33a02c,0xfb9a99,0xe31a1c,0xfdbf6f,0xff7f00,0xcab2d6,0x6a3d9a,0xffff99,0xb15928};
+static std::vector<std::string> brewer_color {"#a6cee3","#1f78b4","#b2df8a","#33a02c","#fb9a99","#e31a1c","#fdbf6f","#ff7f00","#cab2d6","#6a3d9a","#ffff99","#b15928"};
+
+//Helper and Template functions
+//
+template <typename TGraph>
+void cleanGraphHelper(typename TGraph::vertex_descriptor V, const TGraph &G,
+                      TGraph &DAG,
+                      set<typename TGraph::vertex_descriptor> &Seen,
+                      map<typename TGraph::vertex_descriptor,
+                          typename TGraph::vertex_descriptor> &VMap,
+                      map<typename TGraph::vertex_descriptor,
+                          typename TGraph::vertex_descriptor> &WMap) {
+    Seen.insert(V);
+
+    auto EI = out_edges(V, G);
+    for (auto EBegin = EI.first, EEnd = EI.second; EBegin != EEnd; EBegin++) {
+        if (!Seen.count(target(*EBegin, G))) {
+            auto W = add_vertex(DAG);
+            VMap.emplace(target(*EBegin, G), W);
+            WMap.emplace(W, target(*EBegin, G));
+            cleanGraphHelper(target(*EBegin, G), G, DAG, Seen, VMap, WMap);
+        }
+        add_edge(VMap[V], VMap[target(*EBegin, G)], DAG);
+    }
+}
+
+template <typename TGraph>
+void cleanGraph(const TGraph &G, TGraph &DAG,
+                map<typename TGraph::vertex_descriptor,
+                    typename TGraph::vertex_descriptor> &VMap,
+                map<typename TGraph::vertex_descriptor,
+                    typename TGraph::vertex_descriptor> &WMap) {
+    set<typename TGraph::vertex_descriptor> Seen;
+    auto W = add_vertex(DAG);
+    VMap.emplace(0, W);
+    WMap.emplace(W, 0);
+    cleanGraphHelper<TGraph>(0, G, DAG, Seen, VMap, WMap);
+}
+
+
+/**
+ * Retrun mapping for each vertex to its
+ * corresponding chunk
+ */
+inline std::map<uint64_t, uint64_t> 
+vertexToChainMap(const std::vector<std::vector<uint64_t>> chains)
+{
+    //First we create a map from vertex to the chunk ID
+    std::map<uint64_t, uint64_t> vertexToChunk;
+
+    for(uint32_t i = 0; i < chains.size(); ++i){
+        for(auto& c : chains[i]){
+            vertexToChunk.emplace(c,i);
+        }
+    }
+
+    return vertexToChunk;
+}
+
+
+/**
+ * Getting decomposed graph as an input and return depenencies
+ */
+inline std::vector<chainDependency>
+dependenciesGenerate(const BoostGraph& BG, std::vector<std::vector<uint64_t>>& chains, const std::map<uint64_t, uint64_t> chainsMap)
+{
+    std::vector<chainDependency> dependencies;
+
+    for(uint32_t j = 0; j < chains.size(); j++){
+        auto& c = chains[j];
+
+        //For each vertex we look at its out edges, for each target vertex
+        //if it's in different chain then we count it as an dependency
+        for(uint32_t i = 0; i < c.size(); ++i){
+            auto EI = out_edges(c[i], BG);
+            for(auto EB = EI.first, EE = EI.second; EB != EE; EB++){
+                auto T = target(*EB, BG);
+                if(find(c.begin(), c.end(), T) == c.end()){
+                    chainDependency temp;
+                    temp.source = chainsMap.find(c[i])->second;
+                    temp.target = chainsMap.find(T)->second;
+
+                    //Check whether the decomposed graph have self loop or not
+                    assert(temp.source != temp.target && "Decomposed graph can not have self loop!");
+                    dependencies.push_back(temp);
+                }
+            }
+        }
+
+    }
+    return dependencies;
+}
+
+
+/**
+ * Breaking chains at every live-outs helper
+ */
+inline bool
+breakOutHelper(std::vector<std::vector<uint64_t>>& m_chain,
+        const std::vector<chainDependency>& m_depen, const BoostGraph& orig_graph)
+{
+
+    for(auto& dep : m_depen){
+        auto& a_ch = m_chain[dep.source];
+        auto& b_ch = m_chain[dep.target];
+        for(auto& node : a_ch){
+            if(node == a_ch.back())
+                continue;
+            auto edges = boost::out_edges(node, orig_graph);
+            OutEdge ei, ei_end;
+            for(boost::tie(ei, ei_end) = edges; ei != ei_end; ++ei){
+                auto target = boost::target(*ei, orig_graph);
+                auto b_temp_it = std::find(b_ch.begin(), b_ch.end(), target) ;
+                if(b_temp_it != b_ch.end()){
+                    auto a_temp_it = std::find(a_ch.begin(), a_ch.end(), node);
+                    std::vector<uint64_t> newVector(std::make_move_iterator(a_temp_it+1), std::make_move_iterator(a_ch.end()));
+                    a_ch.erase(a_temp_it+1, a_ch.end());
+                    a_ch.shrink_to_fit();
+                    m_chain.push_back(newVector);
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+
+/**
+ * Explointing maximum available ILP
+ * between chains (Breaking at live-in)
+ */
+inline bool 
+breakInHelper(std::vector<std::vector<uint64_t>>& m_chain, const std::vector<chainDependency>& m_depen, BoostGraph& orig_graph)
+{
+    for(auto& dep : m_depen){
+        auto& a_ch = m_chain[dep.source];
+        auto& b_ch = m_chain[dep.target];
+        for(auto& node : a_ch){
+            auto edges = boost::out_edges(node, orig_graph);
+            OutEdge ei, ei_end;
+            for(boost::tie(ei, ei_end) = edges; ei != ei_end; ++ei){
+                auto target = boost::target(*ei, orig_graph);
+                auto temp_it = std::find(b_ch.begin(), b_ch.end(), target) ;
+                if(*temp_it == b_ch.front())
+                    continue;
+                if(temp_it != b_ch.end()){
+                    std::vector<uint64_t> newVector(std::make_move_iterator(temp_it), std::make_move_iterator(b_ch.end()));
+                    b_ch.erase(temp_it, b_ch.end());
+                    b_ch.shrink_to_fit();
+                    m_chain.push_back(newVector);
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+
+/**
+ * Computes chains' level
+ */
+inline void
+findChainsLevel(int32_t m_level, uint32_t id, map<uint32_t, set<uint32_t>>& dependencies,
+                vector<chainGraph>& ch_graph)
+{
+    auto m_it = std::find_if(ch_graph.begin(), ch_graph.end(), 
+            [id](const chainGraph &m) -> bool {return m.chainId == id;});
+
+    //if(m_it == ch_graph.end())
+        //return;
+    //if((id == 166) || (id == 42) || (id == 165) || (id == 85)){
+        //cout << id << ": " << endl;
+        //for(auto& dep : dependencies.find(id)->second)
+            //cout << dep << endl;
+    //}
+    //if(m_it->level == -1){
+    if(m_it->level < m_level){
+        m_it->level = m_level++;
+        auto node_it = dependencies.find(id);
+
+        if(node_it == dependencies.end())
+            return;
+
+        for(auto& dep : node_it->second){
+            findChainsLevel(m_level, dep, dependencies, ch_graph);
+        }
+    }
+    else
+        return;
+}
+
+
+/**
+ * Find graph level
+ */
+void
+findGrahpLevel(BoostGraph& G, uint32_t id, std::vector<int32_t>& m_level, int32_t current_level)
+{
+
+    if(m_level[id] < current_level){
+        if(id == 0){
+            m_level[id] = current_level++;
+            typename boost::graph_traits<BoostGraph>::out_edge_iterator ei, ei_end;
+            if(boost::out_degree(id, G) == 0)
+                return;
+            else{
+                for(boost::tie(ei, ei_end) = boost::out_edges(id, G); ei != ei_end; ei++){
+                    auto target = boost::target(*ei, G);
+                    if(boost::in_degree(target,G) == 1)
+                        findGrahpLevel(G, target, m_level, current_level);
+                }
+            }
+        }
+        else{
+            m_level[id] = current_level++;
+            typename boost::graph_traits<BoostGraph>::out_edge_iterator ei, ei_end;
+            if(boost::out_degree(id, G) == 0)
+                return;
+            else{
+                for(boost::tie(ei, ei_end) = boost::out_edges(id, G); ei != ei_end; ei++){
+                    auto target = boost::target(*ei, G);
+                    findGrahpLevel(G, target, m_level, current_level);
+                }
+            }
+        }
+    }
+    else
+        return;
+}
+
+
+/**
+ * Checking do the chains have specific chain with more than 2 live-outs?
+ */
+inline bool
+Graph::checkLiveOutHelper(std::map<uint32_t, std::vector<uint32_t>>& m_live_out)
+{
+    for(auto& ch : m_live_out){
+        if(ch.second.size() > graph_parameter.param_set.find("MAX_LIVE_OUT")->second 
+                && ch.first != 0)
+            return true;
+    }
+    return false;
+}
+
+/**
+ * Checking do the chains have specific chain with more than 2 live-outs?
+ */
+inline bool
+Graph::checkLiveInHelper(std::map<uint32_t, std::vector<uint32_t>>& m_live_in)
+{
+    for(auto& ch : m_live_in){
+        if(ch.second.size() > graph_parameter.param_set.find("MAX_LIVE_IN")->second)
+            return true;
+    }
+    return false;
+}
+
+/**
+ * Check whether the decomposed graph has loop or not
+ */
+inline bool
+checkLoopComplete(uint32_t id, map<uint32_t, set<uint32_t>>& dependencies, list<uint32_t>& stack)
+{
+    auto node_it = dependencies.find(id);
+
+    if(node_it == dependencies.end())
+        return false;
+
+    auto st_it = find(stack.begin(), stack.end(), id);
+    if(st_it == stack.end())
+        stack.emplace_back(id);
+    else{
+        stack.emplace_back(id);
+        return true;
+    }
+
+    for(auto& ch : node_it->second){
+        if(checkLoopComplete(ch, dependencies, stack))
+            return true;
+    }
+
+    st_it = find(stack.begin(), stack.end(),id);
+    stack.erase(st_it);
+    return false;
+}
+
+/**
+ * Returning list of dependencies for each chains
+ */
+inline std::map<uint32_t, std::vector<uint32_t>>
+histoDependency(vector<chainDependency> dependencies)
+{
+    std::map<uint32_t, std::vector<uint32_t>> map_dependency;
+    for (auto& dep : dependencies){
+        map_dependency[dep.source].push_back(dep.target);
+    }
+    return map_dependency;
+
+}
+
+/**
+ * Returning list of unique dependencies for each chains
+ */
+inline std::map<uint32_t, std::set<uint32_t>>
+uniqueDependency(std::map<uint32_t, std::vector<uint32_t> > histodependency)
+{
+    std::map<uint32_t, std::set<uint32_t>> un_depen;
+    for(auto& c : histodependency){
+        for(auto& d: c.second)
+            un_depen[c.first].emplace(d);
+    }
+
+    return un_depen;
+
+}
+
+/**
+ * Printing chains
+ */
+void
+Graph::printChain()
+{
+    uint32_t i = 0;
+    std::cout << "Chains: \n";
+    for(auto& ch : Chains){
+        cout << "C[" << i++ << "]: \n";
+        for(auto&c : ch){
+            cout << "\t" << c << endl;
+        }
+    
+    }
+
+}
+
+/**
+ * Printing dependencies
+ */
+void
+Graph::printDependencies()
+{
+    cout << "Dependencies: " << endl;
+    for(auto& m: this->un_dependencies){
+        cout << m.first << ": " << endl;
+        for(auto& v:m.second){
+            cout << "\t" << v << endl;
+        }
+    }
+}
+/**
+ * Check wether can we merge a chain's child with itself or not
+ */
+bool
+Graph::mergeChain(std::vector<std::vector<uint64_t>>& m_chain, const BoostGraph& orig_graph)
+{
+    auto vertex_to_chunk = vertexToChainMap(m_chain);
+    //auto dependencies = dependenciesGenerate(orig_graph,m_chain, vertex_to_chunk);
+
+    for(uint32_t i = 1; i < m_chain.size(); i++){
+        bool has_loop = false;
+        auto& ch = m_chain[i];
+        auto& node = ch.back();
+        auto edges = boost::out_edges(node, orig_graph);
+        OutEdge ei, ei_end;
+        for(boost::tie(ei, ei_end) = edges; ei != ei_end; ++ei){
+            //iterate over out edges of the last node, check whether can we 
+            //merge two chains or not
+            auto target = boost::target(*ei, orig_graph);
+            auto t_it = vertex_to_chunk.find(target); 
+
+            if((t_it->second != i) && (m_chain[t_it->second].front() == target)){
+                std::vector<std::vector<uint64_t>> temp_chain = m_chain;
+                temp_chain[i].insert(temp_chain[i].end(), temp_chain[t_it->second].begin(), temp_chain[t_it->second].end() );
+                temp_chain.erase(temp_chain.begin() + t_it->second);
+
+                //Check wether new chain has loop or not
+                auto temp_vtc = vertexToChainMap(temp_chain);
+                auto dependencies = dependenciesGenerate(orig_graph,temp_chain, temp_vtc);
+                auto chain_to_dependencies = histoDependency(dependencies);
+                auto un_dependencies= uniqueDependency(chain_to_dependencies); 
+
+                list<uint32_t> loop_stack;
+                has_loop = false;
+                has_loop = checkLoopComplete(0, un_dependencies, loop_stack);
+
+                if(!has_loop){
+                    //if it's a valid merge then do merge on the real chain
+                    m_chain[i].insert(m_chain[i].end(), m_chain[t_it->second].begin(), m_chain[t_it->second].end() );
+                    m_chain.erase(m_chain.begin() + t_it->second);
+                    return true;
+                }
+            }
+
+        }
+
+    }
+
+    return false;
+}
+
+/**
+ * Getting fan-out (unique dependencies) and returning fan-in
+ */
+std::map<uint32_t, std::set<uint32_t> >
+Graph::reverseMapping(std::map<uint32_t, std::set<uint32_t>> uniquedependency)
+{
+    std::map<uint32_t, std::set<uint32_t>> reverse_depen;
+    for(auto& c : uniquedependency){
+        for(auto& r : c.second){
+            reverse_depen[r].emplace(c.first);
+        }
+    }
+    return reverse_depen;
+
+}
+
+/**
+ * Overloading reverseMapping function
+ */
+std::map<uint32_t, std::vector<uint32_t> >
+Graph::reverseMapping(std::map<uint32_t, std::vector<uint32_t> > dependency)
+{
+    std::map<uint32_t, std::vector<uint32_t>> reverse_depen;
+    for(auto& c : dependency){
+        for(auto& r : c.second){
+            reverse_depen[r].push_back(c.first);
+        }
+    }
+    return reverse_depen;
+
+}
+/**
+ * Loading dot file and load into BG
+ */
+void
+Graph::readGraph(ifstream& input_file)
+{
+    dynamic_properties dp;
+
+    //Vertex
+    auto name = get(&vertex_prop::name, dirty_graph);
+    dp.property("node_id", name);
+
+    auto label = get(&vertex_prop::label, dirty_graph);
+    dp.property("label", label);
+
+    auto opcode = get(&vertex_prop::opcode, dirty_graph);
+    dp.property("opcode", opcode);
+
+    auto color = get(&vertex_prop::color, dirty_graph);
+    dp.property("color", color);
+
+    auto ir = get(&vertex_prop::ir, dirty_graph);
+    dp.property("ir", ir);
+
+    //Edge
+    auto ecolor = get(&edge_prop::color, dirty_graph);
+    dp.property("color", ecolor);
+
+    auto style = get(&edge_prop::style, dirty_graph);
+    dp.property("style", style);
+
+    try
+    {
+        read_graphviz(input_file, dirty_graph, dp, "node_id");
+    }
+    catch(std::exception &err)
+    {
+        cerr << err.what() << endl;
+        //cerr << "read_graphviz failed for " << input_file << "\n";
+        exit(0);
+    }
+
+    return;
+}
+
+/**
+ * Cleaning up the loaded graph
+ * The function reads the input and convert it to the old version
+ * first it removes intiali live-ins and gaurd functions then it
+ * connect start node to all starting nodes
+ */
+void
+Graph::insReadGraphHelper()
+{
+    auto vertices = boost::vertices(clean_graph);
+    auto name = get(&vertex_prop::name, clean_graph);
+    auto label = get(&vertex_prop::label, clean_graph);
+
+    map<uint32_t, uint32_t> new_v;
+    uint32_t j = 0;
+
+    //Adding vertices to the clean graph
+    for(uint32_t i = 0; i < boost::num_vertices(clean_graph); i++){
+        for(auto v = vertices.first; v != vertices.second; ++v){
+
+            regex reg_type("^(.*?)\\(");
+            smatch match;
+            regex_search(get(label, *v), match, reg_type);
+
+            //if((get(name, *v) == i) && ((out_degree(*v, clean_graph) > 0) || (in_degree(*v, clean_graph) > 0) )){
+            if((get(name, *v) == i) && (match[1] != "Arg") && (match[1] != "Const")){
+
+                //Fixing lable
+                auto fix_lable = get(get(&vertex_prop::label, clean_graph),*v);
+                stringstream s_temp;
+                s_temp << match[1] << "(" << i << ")";
+
+                new_v.emplace(i,j++);
+                auto new_v = boost::add_vertex(orig_graph);
+                orig_graph[new_v].name = get(get(&vertex_prop::name, clean_graph),*v);
+                orig_graph[new_v].label = s_temp.str();
+                orig_graph[new_v].color = get(get(&vertex_prop::color, clean_graph),*v);
+                orig_graph[new_v].ir = get(get(&vertex_prop::ir, clean_graph),*v);
+
+                continue;
+            }
+        }
+    }
+
+    //Adding edges to the clean graph
+    typename boost::graph_traits<BoostGraph>::out_edge_iterator ei, ei_end;
+    for( auto v = vertices.first; v != vertices.second; ++v){
+        for(boost::tie(ei, ei_end) = boost::out_edges(*v, clean_graph); ei != ei_end; ei++){
+            auto source = boost::source(*ei, clean_graph);
+            auto target = boost::target(*ei, clean_graph);
+
+            if(new_v.find(get(name, source))->second != new_v.find(get(name, target))->second)
+                boost::add_edge(new_v.find(get(name, source))->second, new_v.find(get(name, target))->second, orig_graph);
+        }
+
+    }
+
+}
+
+
+/**
+ * Removing edges from ARG and CONST nodes
+ */
+void
+Graph::cleanRemoveReadGraphHelper()
+{
+    std::map<uint32_t, uint32_t> v_map;
+
+    //Using regex for extracting type of the nodes
+    regex reg_type("^(.*?)\\(");
+
+    //uint32_t j = 0;
+    //Adding vertices to the clean graph
+    for(uint32_t i = 0; i < boost::num_vertices(clean_graph); i++){
+        auto new_v = boost::add_vertex(orig_graph);
+        orig_graph[new_v].name = clean_graph[i].name;
+        orig_graph[new_v].label = clean_graph[i].label;
+        orig_graph[new_v].opcode= clean_graph[i].opcode;
+        orig_graph[new_v].color = clean_graph[i].color;
+        orig_graph[new_v].ir= clean_graph[i].ir;
+
+        v_map.emplace(i,new_v);
+
+        //smatch match;
+        //regex_search(clean_graph[i].label, match, reg_type);
+
+    }
+
+    auto m_vertices = boost::vertices(clean_graph);
+    //Adding edges to the clean graph
+    typename boost::graph_traits<BoostGraph>::out_edge_iterator ei, ei_end;
+    for( auto v = m_vertices.first; v != m_vertices.second; ++v){
+        for(boost::tie(ei, ei_end) = boost::out_edges(*v, clean_graph); ei != ei_end; ei++){
+            auto source = boost::source(*ei, clean_graph);
+            auto target = boost::target(*ei, clean_graph);
+
+            //boost::add_edge(source,target,orig_graph);
+            boost::add_edge(v_map.find(source)->second, v_map.find(target)->second, orig_graph );
+        }
+    }
+
+}
+
+/**
+ * Writing new clean graph to a dot file format
+ *
+ */
+void
+Graph::writeGraph(std::string str_name, BoostGraph& G)
+{
+    std::ofstream output_file;
+    std::stringstream f;
+    f << "output/" << str_name << ".dot";
+    output_file.open(f.str(), ios::out);
+    //Initiating dot graph file format
+    std::stringstream temp;
+    temp << "digraph G {\n";
+
+    //Writing vertices to the clean graph
+    for(uint32_t i = 0; i < boost::num_vertices(G); i++)
+        temp << i << "[id=" << i << ", label=\"" << G[i].label << "\", color=\"" << G[i].color << "\", ir=\"" << G[i].ir << "\"" << "];\n";
+
+    //Writing edges to the clean graph
+    auto edges = boost::edges(G);
+    for( auto v = edges.first; v != edges.second; ++v){
+            auto source = boost::source(*v, G);
+            auto target = boost::target(*v, G);
+
+            temp << source << "->" << target << "\n";
+    }
+
+    //Closing the file
+    temp << "}";
+
+    output_file << temp.str();
+    output_file.close();
+
+}
+
+
+/**
+ * Writing new clean graph to a dot file format
+ *
+ */
+void
+Graph::writeGraph(std::string str_name, BoostGraphComp& G)
+{
+    std::ofstream output_file;
+    std::stringstream f;
+    f << "output/" << str_name << ".dot";
+    output_file.open(f.str(), ios::out);
+    //Initiating dot graph file format
+    std::stringstream temp;
+    temp << "digraph G {\n";
+
+    //Writing vertices to the clean graph
+    for(uint32_t i = 0; i < boost::num_vertices(G); i++)
+        temp << i << "[id=" << i << ", label=\"" << G[i].label << "\",  type=\"" << G[i].type << "\", level=" << G[i].level << ", color=\"" << G[i].color << "\", ir=\"" << G[i].ir << "\"" << "];\n";
+
+    //Writing edges to the clean graph
+    auto edges = boost::edges(G);
+    for( auto v = edges.first; v != edges.second; ++v){
+            auto source = boost::source(*v, G);
+            auto target = boost::target(*v, G);
+
+            temp << source << "->" << target << "\n";
+    }
+
+    //Closing the file
+    temp << "}";
+
+    output_file << temp.str();
+    output_file.close();
+
+}
+
+/**
+ * Initilize the graph object
+ */
+void
+Graph::initialize(std::string full_path, std::string str_name)
+{
+
+    ifstream input_file(full_path, ios::in);
+    assert(input_file.is_open() && "Error! File couldn't open");
+
+    //1) Start reading graph parameters
+    graph_parameter.readParam(graph_param_path);
+
+    //Reading llvm instructions
+    llvm_ins.readInst(llvm_instruction_path);
+
+    //2) Reading input graph
+    readGraph(input_file);
+
+    //3) Reordering the graph
+    cleanReadGraphHelper();
+
+    //4) Limiting live-in to two
+    limitingLiveInHelper(this->clean_graph);
+
+    //5) Limiting live-out to two
+    limitingLiveOutHelper(this->clean_graph);
+
+
+    //6) Removing Arg and Const nodes
+    cleanRemoveReadGraphHelper();
+    
+
+    //7) Extracting INS graph
+    //insReadGraphHelper();
+    completeReadGraphHelper(str_name);
+    //writeGraph("test", comp_graph);
+
+
+    //8) Decomposing the original graph
+    Chains = decomposeHelper(orig_graph);
+
+    //9) Breaking chains
+    breakChains();
+
+    //************************
+    // COMMENTING FOR DATAFLOW
+    //***********************
+    //9) Breaking chains at first node
+    //breakingStartNode();
+
+    ////10) Braking at every live-out
+    ////First we check whether the parameter has been set
+    //auto search_param = graph_parameter.param_set.find("BREAK_LIVE_OUT");
+    //assert((search_param != graph_parameter.param_set.end()) &&
+    //        "ERROR: BREAK_LIVE_OUT parameter has not been defined");
+    //if(search_param->second)
+    //    breakEveryLiveOut();
+
+    ////11) Braking at every live-in
+    ////First we check whether the parameter has been set
+    //search_param = graph_parameter.param_set.find("BREAK_LIVE_IN");
+    //assert((search_param != graph_parameter.param_set.end()) &&
+    //        "ERROR: BREAK_LIVE_IN parameter has not been defined");
+    //if(search_param->second)
+    //    breakEveryLiveIn();
+
+    ////12) Merging the chains in order to increase the length
+    //search_param = graph_parameter.param_set.find("MERGE");
+    //assert((search_param != graph_parameter.param_set.end()) &&
+    //    "ERROR: MERGE parameter has not been defined");
+    //if(search_param->second)
+    //    while(mergeChain(Chains, orig_graph));
+
+    ////13) Check whether number of live-out for each chain is limit to LIMIT variable
+    //checkLiveOutLimit();
+
+    ////14) Check whether number of live-in for each chain is limit to LIMIT variable
+    //checkLiveInLimit();
+
+    //15) Breaking the chains
+    //Compare lane's instruciton buffer size with chain's length
+    //if the chain's length is bigger than lane's instruction buffer
+    //we should break them
+    //Breaking chains if they are longar than instruction size
+    //breakSize();
+
+
+    //16) Building final dependencies
+    //
+    this->vertex_to_Chunk = vertexToChainMap(Chains);
+    this->dependencies = dependenciesGenerate(orig_graph,Chains, vertex_to_Chunk);
+    this->chain_to_dependencies = histoDependency(dependencies);
+    this->un_dependencies= uniqueDependency(chain_to_dependencies); 
+    this->un_reverse_mapping = reverseMapping(un_dependencies);
+    this->reverse_mapping = reverseMapping(chain_to_dependencies);
+
+
+
+
+    //Printing final chains
+    std::cout << "Chain size: " << Chains.size() << std::endl;
+    printChain();
+    printDependencies();
+
+    list<uint32_t> loop_stack;
+    bool has_loop = checkLoopComplete(0, un_dependencies, loop_stack);
+    assert(!has_loop && "CHAIN HAS LOOP!");
+    buildChainGraph();
+
+    //17) filling lelvel mappint
+    buildChainLevel();
+
+    //18) Create Blocks
+    createChainBlocks();
+
+    printChainStats(str_name);
+    printGraphstats(str_name);
+
+    //TODO: FIX THIS PART
+    writeGraph(str_name+"-new", orig_graph);
+    writeGraph(str_name+"-complete", comp_graph);
+    writeChain(str_name+"-chain");
+
+    
+}
+
+/**
+ * Checking whether is a node with live-out bigger than 3
+ */
+bool
+Graph::boundaryLiveOutCheckHelper(BoostGraph& G)
+{
+    auto vertices = boost::vertices(G);
+    for(auto v = vertices.first; v != vertices.second; ++v){
+        if(boost::out_degree(*v,G) > 2 && *v != 0)
+            return true;
+    }
+    return false;
+}
+
+/**
+ * Checking whether there is a node with live-in bigger than 3
+ */
+bool
+Graph::boundaryLiveInCheckHelper(BoostGraph& G)
+{
+    auto vertices = boost::vertices(G);
+    for(auto v = vertices.first; v != vertices.second; ++v){
+        if(boost::in_degree(*v,G) > 2 && *v != 0)
+            return true;
+    }
+    return false;
+}
+
+/**
+ * Limiting number of fan outs
+ */
+void
+Graph::limitingLiveOutHelper(BoostGraph& G)
+{
+    while(boundaryLiveOutCheckHelper(G)){
+        std::vector<uint32_t> new_edges;
+        std::vector<OutEdge> m_delete;
+
+
+        auto vertices = boost::vertices(G);
+        for(auto v = vertices.first; v != vertices.second; ++v){
+            //Check whether number of consumers for a node is more than 3 or not
+            //if yes, then make a fake node
+            if(out_degree(*v,G) > 2 && *v != 0){
+               
+                cout << "Adding FAKE node" << endl;
+                auto n_node = boost::num_vertices(G);
+                //Adding new node
+                auto new_v = boost::add_vertex(G);
+                G[new_v].name = n_node;
+                G[new_v].label = "FAKEOUT(" + to_string(n_node + 1) + ")";
+                G[new_v].opcode = "FAKEOUT";
+                G[new_v].color= "blue";
+                G[new_v].ir= "NOP";
+
+                OutEdge ei, ei_end;
+                uint32_t b_cnt = 0;
+                for(boost::tie(ei, ei_end) = boost::out_edges(*v, G); ei != ei_end; ei++){
+                    if(b_cnt++){
+                        auto target = boost::target(*ei, G);
+                        boost::add_edge(new_v, target, G);
+                        m_delete.push_back(ei);
+                    }
+                }
+
+                //Removing edges
+                for(auto& e : m_delete)
+                    boost::remove_edge(*e, G);
+
+                boost::add_edge(*v, new_v ,G);
+                break;
+            }
+        }
+
+    }
+
+}
+
+/**
+ * Limiting number of live in
+ */
+void
+Graph::limitingLiveInHelper(BoostGraph& G)
+{
+    while(boundaryLiveInCheckHelper(G)){
+        std::vector<uint32_t> new_edges;
+        std::vector<InEdge> test_delete;
+
+        auto vertices = boost::vertices(G);
+        for(auto v = vertices.first; v != vertices.second; ++v){
+            //Check whether number of producers for a node is more than 3 or not
+            //if yes, then make a fake node
+            if(in_degree(*v,G) > 2 && *v != 0){
+                cout << "Adding FAKE node for live-in" << endl;
+                auto n_node = boost::num_vertices(G);
+
+                //Adding new node
+                auto new_v = boost::add_vertex(G);
+                G[new_v].name = n_node;
+                G[new_v].label = "FAKEIN(" + to_string(n_node+1) + ")";
+                G[new_v].opcode = "FAKEIN";
+                G[new_v].color= "red";
+                G[new_v].ir= "NOP";
+
+                InEdge ei, ei_end;
+                uint32_t b_cnt = 0;
+                for(boost::tie(ei, ei_end) = boost::in_edges(*v, G); ei != ei_end; ei++){
+                    if(b_cnt++ < 2){
+                        auto source = boost::source(*ei, G);
+                        boost::add_edge(source, new_v, G);
+                        test_delete.push_back(ei);
+                    }
+                }
+
+                //Removing edges
+                for(auto& e : test_delete)
+                    boost::remove_edge(*e, G);
+
+                
+                boost::add_edge(new_v , *v ,G);
+                break;
+            }
+        }
+
+    }
+}
+/**
+ * Reordering the input graph
+ */
+void
+Graph::cleanReadGraphHelper()
+{
+    std::map<uint32_t, uint32_t> new_v;
+    std::vector<std::pair<uint32_t,uint32_t>> m_added;
+    uint32_t j = 0;
+
+    auto vertices = boost::vertices(dirty_graph);
+    auto name = get(&vertex_prop::name, dirty_graph);
+
+    //Adding vertices to the clean graph
+    for(uint32_t i = 0; i < boost::num_vertices(dirty_graph); i++){
+        for(auto v = vertices.first; v != vertices.second; ++v){
+            if(get(name, *v) == i){
+                new_v.emplace(i,j++);
+                auto new_v = boost::add_vertex(clean_graph);
+                clean_graph[new_v].name = get(get(&vertex_prop::name, dirty_graph),*v);
+                clean_graph[new_v].label = get(get(&vertex_prop::label, dirty_graph),*v);
+                //Making all nodes color black
+                clean_graph[new_v].opcode = get(get(&vertex_prop::opcode, dirty_graph),*v);
+                clean_graph[new_v].color = "black";
+                clean_graph[new_v].ir = get(get(&vertex_prop::ir, dirty_graph),*v);
+            }
+        }
+
+        if(dirty_graph[i].opcode == "Arg")
+            num_arg++;
+        else if(dirty_graph[i].opcode == "Const")
+            num_const++;
+
+    }
+
+    //Adding edges to the clean graph
+    typename boost::graph_traits<BoostGraph>::out_edge_iterator ei, ei_end;
+    for( auto v = vertices.first; v != vertices.second; ++v){
+        for(boost::tie(ei, ei_end) = boost::out_edges(*v, dirty_graph); ei != ei_end; ei++){
+            auto source = boost::source(*ei, dirty_graph);
+            auto target = boost::target(*ei, dirty_graph);
+
+            std::pair<uint32_t,uint32_t> temp_pair(new_v.find(get(name, source))->second,
+                    new_v.find(get(name, target))->second);
+
+            if(get(get(&edge_prop::style, dirty_graph), *ei) != "dotted"){
+
+                //Making sure that we only add one edge from source to target
+                //This case usually happens for BB node while we remove ARG and CONST nodes
+                auto it = std::find_if(m_added.begin(), m_added.end(), 
+                        [temp_pair](const std::pair<uint32_t, uint32_t>& t) -> bool {
+                            return ((temp_pair.first == t.first) && (temp_pair.second == t.second));
+                        }
+                        );
+                if(it == m_added.end()){
+                    m_added.push_back(temp_pair);
+                    boost::add_edge(new_v.find(get(name, source))->second, new_v.find(get(name, target))->second, clean_graph);
+                }
+            }
+        }
+    }
+
+}
+
+/**
+ * Decomposing the input graph using Dilworth's algorithm and then
+ * remap the vertices
+ * @input Boostgraph
+ * @output vector<vector> decomposed graph
+ */
+std::vector<std::vector<uint64_t>>
+Graph::decomposeHelper(const BoostGraph& G)
+{
+    // Distill G and then call the decomposition
+    // methods, finally remap to original vertices.
+
+    BoostGraph DAG;
+    typedef typename BoostGraph::vertex_descriptor Vertex;
+    map<Vertex, Vertex> VMap;
+    map<Vertex, Vertex> WMap;
+
+    // Because the bimap did not work
+    cleanGraph<BoostGraph>(G, DAG, VMap, WMap);
+
+    // Check whether the graph can be decomposed,
+    // our construction as a DAG should ensure this is
+    // possible.
+    assert(boost::is_bipartite(DAG));
+
+    dilworth::DilworthDecompose<BoostGraph> DD;
+    auto Chains = DD.generateMinimalChains(DAG);
+
+    // Remap to original vertices
+    for (auto &C : Chains)
+        for (unsigned I = 0; I < C.size(); I++) {
+            assert(WMap.count(C[I]) && "Reverse map does not contain vertex");
+            C[I] = WMap[C[I]];
+        }
+
+    return Chains;
+
+}
+
+
+/*
+ * Breaking starting node
+ */
+void
+Graph::breakingStartNode()
+{
+    //Breaking the chains
+    auto& ch_first = Chains[0];
+    auto it = std::find(ch_first.begin(), ch_first.end(), 0); 
+    if(it != ch_first.end() && ch_first.size() > 1){
+        std::vector<uint64_t> newVector(std::make_move_iterator(it+1), std::make_move_iterator(ch_first.end()));
+        ch_first.erase(it+1, ch_first.end());
+        Chains.push_back(newVector);
+    }
+}
+
+/*
+ * Breaking chains at every live-out
+ */
+void
+Graph::breakEveryLiveOut()
+{
+    bool out_flag = false;
+    do{
+    
+        auto vertex_to_Chunk = vertexToChainMap(Chains);
+        auto dependencies = dependenciesGenerate(orig_graph,Chains, vertex_to_Chunk);
+        out_flag = breakOutHelper(Chains, dependencies, orig_graph);
+    }
+    while(out_flag);
+}
+
+/*
+ * Breaking chains at every live-in
+ */
+void
+Graph::breakEveryLiveIn()
+{
+    bool in_flag = false;
+    do{
+        auto vertex_to_Chunk = vertexToChainMap(Chains);
+        auto dependencies = dependenciesGenerate(orig_graph,Chains, vertex_to_Chunk);
+        in_flag = breakInHelper(Chains, dependencies, orig_graph);
+    }
+    while(in_flag);
+}
+
+/*
+ * Checking whether the decomposed graph has loop or not
+ */
+void
+Graph::checkLoop()
+{
+    bool has_loop=false;
+    do{
+        assert((Chains.size() < graph_parameter.param_set.find("MAX_NUM_CHAIN")->second)
+                && "Can support huge graph!");
+        list<uint32_t> loop_stack;
+        auto vertex_to_Chunk = vertexToChainMap(Chains);
+        auto dependencies = dependenciesGenerate(orig_graph,Chains, vertex_to_Chunk);
+        auto chain_to_dependencies = histoDependency(dependencies);
+        auto un_dependencies = uniqueDependency(chain_to_dependencies); 
+
+        auto un_reverse_mapping = reverseMapping(un_dependencies);
+        auto reverse_mapping = reverseMapping(chain_to_dependencies);
+
+
+        has_loop = checkLoopComplete(0, un_dependencies, loop_stack);
+        if(has_loop){
+            auto& end_element = loop_stack.back();
+
+            auto l_ch_a = find(loop_stack.begin(), loop_stack.end(), end_element);
+            auto l_ch_b = find(loop_stack.begin(), loop_stack.end(), *l_ch_a);
+            std::advance(l_ch_b, 1);
+
+
+            uint32_t break_point = 0;
+            bool find_test = false;
+            bool m_a=false;
+            bool m_b=false;
+
+            while(!find_test){
+                auto& temp_ch_a = Chains[*l_ch_a];
+                auto& temp_ch_b = Chains[*l_ch_b];
+
+                for(auto&c : temp_ch_a){
+                    m_a=false;
+                    m_b=false;
+                    typename graph_traits<BoostGraph>::out_edge_iterator ei, ei_end;
+
+                    for(boost::tie(ei, ei_end) = boost::out_edges(c, orig_graph); ei != ei_end; ei++){
+                        auto target = boost::target(*ei, orig_graph);
+
+                        if(std::find(temp_ch_b.begin(), temp_ch_b.end(), target) != temp_ch_b.end())
+                            m_b = true;
+                        else if(std::find(temp_ch_a.begin(), temp_ch_a.end(), target) != temp_ch_a.end())
+                            m_a = true;
+
+                        if(m_a && m_b){
+                            break_point = c;
+                            break;
+                        }
+                    }
+                    if(m_a && m_b)
+                        break;
+                }
+                    
+                std::advance(l_ch_b, 1);
+
+                if( m_a && m_b ){
+                    //we should break the loop
+                    auto it_break = std::find(temp_ch_a.begin(), temp_ch_a.end(), break_point);
+                    //if(*it_break != temp_ch_a.back()){
+                        vector<uint64_t> new_vec(std::make_move_iterator(it_break+1), std::make_move_iterator(temp_ch_a.end()));
+                        temp_ch_a.erase(it_break+1, temp_ch_a.end());
+                        assert(new_vec.size() > 0 && " Wrong! ");
+                        Chains.push_back(new_vec);
+                        find_test = true;
+                    //}
+                    //else{
+                        //vector<uint64_t> new_vec(std::make_move_iterator(it_break), std::make_move_iterator(temp_ch_a.end()));
+                        //temp_ch_a.erase(it_break, temp_ch_a.end());
+                        //assert(new_vec.size() > 0 && " Wrong! ");
+                        //Chains.push_back(new_vec);
+                        //find_test = true;
+                    //}
+
+                }
+                else if((l_ch_b) != loop_stack.end()){
+                    std::advance(l_ch_a,1);
+                }
+                else
+                    break;
+            }
+
+        }
+    }while(has_loop);
+}
+
+/*
+ * Check whether number of chains' live-out is limited to two
+ */
+void
+Graph::checkLiveOutLimit()
+{
+    bool has_liveOut = false;
+    do{
+        assert((Chains.size() < graph_parameter.param_set.find("MAX_NUM_CHAIN")->second)
+                && "Can support huge graph!");
+        auto vertex_to_Chunk = vertexToChainMap(Chains);
+        auto dependencies = dependenciesGenerate(orig_graph,Chains, vertex_to_Chunk);
+        auto chain_to_dependencies = histoDependency(dependencies);
+        auto un_dependencies= uniqueDependency(chain_to_dependencies); 
+        auto un_reverse_mapping = reverseMapping(un_dependencies);
+        auto reverse_mapping = reverseMapping(chain_to_dependencies);
+        has_liveOut = checkLiveOutHelper(chain_to_dependencies);
+        
+        if(has_liveOut){
+            for(auto& live : chain_to_dependencies){
+                if(live.second.size() > graph_parameter.param_set.find("MAX_LIVE_OUT")->second){
+                    //traverse two node from begining of the chain and 
+                    //then break the chain
+                    //Since we are sure that each node can not have more than
+                    //two live-out so if a chain has more than two live out it
+                    //means size of the chain is also grater than two
+                  
+                    auto& rit = Chains[live.first];
+                    uint32_t cnt_out = 0;
+                    //for(auto& ch: rit){
+                    for(auto ch = rit.rbegin(); ch!=rit.rend(); ch++){
+                        if(*ch == 0)
+                            continue;
+                        auto edges = boost::out_edges(*ch, orig_graph);
+                        OutEdge ei, ei_end;
+                        for(boost::tie(ei, ei_end) = edges; ei != ei_end; ++ei){
+                            auto target = boost::target(*ei, orig_graph);
+                            if(std::find(rit.begin(), rit.end(), target) == rit.end())
+                                cnt_out++;
+                        }
+
+                        if(cnt_out >= graph_parameter.param_set.find("MAX_LIVE_OUT")->second){
+                            auto it = std::find(rit.begin(), rit.end(), *ch);
+                            std::vector<uint64_t> newVector(std::make_move_iterator(it), std::make_move_iterator(rit.end()));
+                            rit.erase(it, rit.end());
+                            rit.shrink_to_fit();
+                            Chains.push_back(newVector);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    while(has_liveOut);
+}
+
+
+/*
+ * Check whether number of chains' live-out is limited to two
+ */
+void
+Graph::checkLiveInLimit()
+{
+    //Cheking number of livei-in
+    bool has_liveIn = false;
+    do{
+
+        assert((Chains.size() < graph_parameter.param_set.find("MAX_NUM_CHAIN")->second)
+                && "Can support huge graph!");
+        auto vertex_to_Chunk = vertexToChainMap(Chains);
+        auto dependencies = dependenciesGenerate(orig_graph,Chains, vertex_to_Chunk);
+        auto chain_to_dependencies = histoDependency(dependencies);
+        auto un_dependencies= uniqueDependency(chain_to_dependencies); 
+        auto un_reverse_mapping = reverseMapping(un_dependencies);
+        auto reverse_mapping = reverseMapping(chain_to_dependencies);
+        has_liveIn = checkLiveInHelper(reverse_mapping);
+        
+        if(has_liveIn){
+            for(auto& live : reverse_mapping){
+                if(live.second.size() > graph_parameter.param_set.find("MAX_LIVE_IN")->second){
+                    //traverse two nodes from begining of the chain and 
+                    //then break the chain
+                    //Since we are sure that each node can not have more than
+                    //two live-out so if a chain has more than two live out it
+                    //means size of the chain is also grater than two
+                  
+                    auto& rit = Chains[live.first];
+                    uint32_t cnt_in = 0;
+                    //for(auto& ch: rit){
+                    for(auto ch = rit.begin(); ch!=rit.end(); ch++){
+                        auto edges = boost::in_edges(*ch, orig_graph);
+                        InEdge ei, ei_end;
+                        for(boost::tie(ei, ei_end) = edges; ei != ei_end; ++ei){
+                            //auto target = boost::target(*ei, orig_graph);
+                            auto source = boost::source(*ei, orig_graph);
+                            if(std::find(rit.begin(), rit.end(), source) == rit.end())
+                                cnt_in++;
+                        }
+
+                        //TODO fix live-in
+                        assert(cnt_in <= graph_parameter.param_set.find("MAX_LIVE_IN")->second
+                                && "Node with more than two live-in!!!");
+
+                        if(cnt_in == graph_parameter.param_set.find("MAX_LIVE_IN")->second){
+                            auto it = std::find(rit.begin(), rit.end(), *ch);
+                            std::vector<uint64_t> newVector(std::make_move_iterator(it+1), std::make_move_iterator(rit.end()));
+                            rit.erase(it+1, rit.end());
+                            rit.shrink_to_fit();
+                            Chains.push_back(newVector);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    while(has_liveIn);
+}
+
+/*
+ * Breaking the chains base on graph_limit parameter
+ * which has been set at construction time
+ */
+void
+Graph::breakSize()
+{
+    bool change = true;
+    do{
+        change = false;
+        for(auto&ch : Chains){
+            if(ch.size() > graph_limit){
+                vector<uint64_t> new_vec(std::make_move_iterator(ch.begin()+graph_limit), std::make_move_iterator(ch.end()));
+                ch.erase(ch.begin()+graph_limit, ch.end());
+                Chains.push_back(new_vec);
+                change = true;
+                break;
+            }
+        }
+    }while(change);
+}
+
+/**
+ * Making a new graph which has more information
+ */
+void
+Graph::completeReadGraphHelper(std::string str_name)
+{
+    auto vertices = boost::vertices(orig_graph);
+
+    map<uint32_t, uint32_t> new_v;
+    vector<int32_t> m_level(boost::num_vertices(orig_graph));
+    num_ops = boost::num_vertices(orig_graph);
+    for(auto& l : m_level)
+        l = -1;
+
+    findGrahpLevel(orig_graph, 0, m_level, 0);
+
+    uint32_t j = 0;
+    //Adding vertices to the clean graph
+    for(uint32_t i = 0; i < boost::num_vertices(orig_graph); i++){
+        //Getting type
+        regex reg_type("^(.*?)\\(");
+        regex reg_id("^.*?\\((\\d+)\\)");
+        smatch match;
+        smatch id_match;
+        regex_search(orig_graph[i].label, match, reg_type);
+        regex_search(orig_graph[i].label, id_match, reg_id);
+
+        stringstream s_temp;
+        s_temp << match[1] << "(" << id_match[1] << ")";
+
+        new_v.emplace(i,j++);
+        auto n_v = boost::add_vertex(comp_graph);
+        comp_graph[n_v].name = orig_graph[i].name;
+        comp_graph[n_v].id = orig_graph[i].name;
+        comp_graph[n_v].label = s_temp.str();
+        comp_graph[n_v].type = match[1];
+        comp_graph[n_v].latency = llvm_ins.instruction_llvm.find(match[1])->second;
+        comp_graph[n_v].level = m_level[i];
+        comp_graph[n_v].color = orig_graph[i].color;
+        comp_graph[n_v].ir= orig_graph[i].ir;
+
+
+        //keep original mapping
+        orig_map[n_v] = stoi(id_match[1]);
+    }
+
+    //Adding edges to the clean graph
+    typename boost::graph_traits<BoostGraph>::out_edge_iterator ei, ei_end;
+    for( auto v = vertices.first; v != vertices.second; ++v){
+        for(boost::tie(ei, ei_end) = boost::out_edges(*v, orig_graph); ei != ei_end; ei++){
+            auto source = boost::source(*ei, orig_graph);
+            auto target = boost::target(*ei, orig_graph);
+
+            cout << "ADD edge: " << new_v.find(source)->second << " -> " <<  new_v.find(target)->second << endl;
+            boost::add_edge(new_v.find(source)->second, new_v.find(target)->second, comp_graph);
+        }
+    }
+
+    //Computing graph stats
+    //1) Max length
+    auto m_l = std::max_element(m_level.begin(), m_level.end());
+    length = *m_l;
+    //2) ILP
+    //
+   
+    //uint32_t m_i=0;
+    uint32_t sum_gilp=0;
+
+    std::map<uint32_t,uint32_t> graph_ilp;
+    for(auto &ml : m_level){
+        auto ml_it = graph_ilp.find(ml);
+        if(ml_it == graph_ilp.end())
+            graph_ilp[ml]=1;
+        else
+            ml_it->second++;
+    }
+
+    for(auto it_ml = graph_ilp.begin(); it_ml != graph_ilp.end(); ++it_ml){
+        if(it_ml->second > max_ilp){
+            max_ilp = it_ml->second;
+        }
+    }
+
+
+    for(auto& m : graph_ilp)
+        sum_gilp += m.second;
+    
+
+    avg_ilp = (double)sum_gilp/(double)graph_ilp.size();
+    //max_ilp = m_i;
+    
+
+    //3) num ops
+    num_ops = m_level.size();
+
+    //4) Histogram and first level LD and MLP
+    std::map<uint32_t, uint64_t> m_graph_mlp;
+    for(uint32_t i = 0; i < m_level.size(); i++){
+
+        auto m_node = comp_graph[i];
+
+        //Instruction histogram
+        auto ins_it = ins_histo.find(m_node.type); 
+        if(ins_it == ins_histo.end())
+            ins_histo[m_node.type] = 1;
+        else
+            ins_histo[m_node.type]++;
+
+        //Check for first level LD
+        if((m_node.level == 1) && (m_node.type == "Load"))
+            firstlevelLD++;
+
+        //Computing MLP
+        if((m_node.type == "Load") || (m_node.type == "Store")){
+            auto it_mlp = m_graph_mlp.find(m_node.level);
+            if(it_mlp == m_graph_mlp.end())
+                m_graph_mlp[m_node.level] = 1;
+            else
+                m_graph_mlp[m_node.level]++;
+        }
+        //Getting max of mlp
+        max_mlp = 0;
+        for(auto& node : m_graph_mlp){
+            if(node.second > max_mlp)
+                max_mlp = node.second;
+        }
+    }
+}
+
+
+
+
+/**
+ * Calculating stats of the chains
+ */
+void
+Graph::buildChainGraph()
+{
+    uint32_t i = 0;
+    for(auto& ch: Chains){
+        chainGraph temp_node;
+        //chain id
+        temp_node.chainId = i;
+        
+        //chain size
+        temp_node.size = ch.size();
+
+        //chain fan_in
+        auto it_live_in = reverse_mapping.find(i);
+        if(it_live_in != reverse_mapping.end() && !it_live_in->second.empty())
+            temp_node.fan_in = it_live_in->second.size();
+
+        //chain fan_out
+        auto it_live_out = chain_to_dependencies.find(i);
+        if(it_live_out != chain_to_dependencies.end() && !it_live_out->second.empty())
+            temp_node.fan_out = it_live_out->second.size();
+
+        //chain live_in
+        auto it_fan_in = un_reverse_mapping.find(i);
+        if(it_fan_in != un_reverse_mapping.end() && !it_fan_in->second.empty())
+            temp_node.live_in = it_fan_in->second.size();
+
+        //chain live_out
+        auto it_fan_out = un_dependencies.find(i);
+        if(it_fan_out != un_dependencies.end() && !it_fan_out->second.empty())
+            temp_node.live_out = it_fan_out->second.size();
+
+        //Calculate number of different instructions
+        //TODO: need to read instruction format from LLVM and import them!
+        //
+        
+        temp_node.nodes = ch;
+
+        //Check whether chains is MEM
+        for(auto& t_ins : ch){
+            if((comp_graph[t_ins].type == "Load") || (comp_graph[t_ins].type == "Store"))
+                temp_node.is_mem = true;
+        }
+        chain_graph.push_back(temp_node);
+        i++;
+    }
+
+    //Counting chains' level
+    findChainsLevel(0, 0, un_dependencies, chain_graph);
+}
+
+/**
+ * Printing graph stats into CSV file
+ */
+void
+Graph::printGraphstats(std::string str_name)
+{
+    std::ofstream file;
+    std::stringstream f;
+
+    //Dumping graph stats
+    f << "output/" << str_name << "-graphStat.csv";
+    file.open(f.str());
+    assert(file.is_open() && "Graph output file couldn't create");
+    std::stringstream res;
+    res << "num_arg, num_const, num_ops, avg_ilp, max_ilp, max_level, first_level_LD, max_MLP\n";
+    res << num_arg << ", " << num_const << ", " << num_ops << ", " << avg_ilp << ", " 
+        << max_ilp << ", " << length << ", " << firstlevelLD << ", " << max_mlp << endl;
+    file << res.str();
+    file.close();
+
+    //Dumping graph histogram
+    f.str("");
+    res.str("");
+    f << "output/" << str_name << "-graphHisto.csv";
+    file.open(f.str());
+    assert(file.is_open() && "Graph histo output file couldn't create");
+
+    //TODO fix header
+    //Writing CSV header
+    //std::adjacent_difference(llvm_ins.instruction_llvm.begin(), llvm_ins.instruction_llvm.end(), ostream_iterator<std::string>(res),
+            //[&res](std::string a, std::string b)->std::string {return res << ", ", a; });
+    //res << endl;
+    //
+    for(auto& c: llvm_ins.instruction_llvm)
+        res << c.first << ", " ;
+    res << "\b\b" << " " << endl;
+
+    for(auto& c: llvm_ins.instruction_llvm){
+
+        auto it_ins = ins_histo.find(c.first);
+        if(it_ins == ins_histo.end())
+            res << 0 << ", ";
+        else
+            res << it_ins->second << ", ";
+    }
+    res << "\b\b" << " " << endl;
+
+    file << res.str();
+    file.close();
+
+}
+
+/**
+ * Printing chains' stats into CSV file
+ */
+void
+Graph::printChainStats(string str_name)
+{
+    std::ofstream file;
+    std::stringstream f;
+    f << "output/" << str_name << "-chainSummary.csv";
+    file.open(f.str());
+    assert(file.is_open() && "Chain output file couldn't create");
+    std::stringstream res;
+    res << "ch_id, size, live_in, live_out, fan_in, fan_out, MEM_LD, MEM_ST, MEM_ALLOCA, other, level\n";
+    for(auto& ch : chain_graph){
+        res << ch.chainId << ", " << ch.size << ", " << ch.live_in << ", " << ch.live_out 
+            << ", " << ch.fan_in << ", " << ch.fan_out << ", " << ch.ld_ins << ", " << ch.st_ins 
+            << ", " << ch.alloca_ins << ", "<< ch.other << ", " << ch.level << "\n";
+    }
+    file << res.str();
+    file.close();
+
+
+    f.str("");
+    res.str("");
+    f << "output/" << str_name << "-chainStat.csv";
+    file.open(f.str());
+    assert(file.is_open() && "Chain output file couldn't create");
+
+    //Computing graph stats
+    //
+    //
+    //1) Max length
+    int32_t max_level = 0;
+    uint32_t max_size = 0;
+    uint32_t ch_tot_size = 0;
+    for(auto&c : chain_graph){
+        ch_tot_size += c.size;
+        if(c.level > max_level)
+            max_level = c.level;
+        if(c.size > max_size)
+            max_size = c.size;
+    }
+
+
+    //2) ILP
+    uint32_t m_m = 0;
+    uint32_t sum_ilp = 0;
+
+    //ILP histogram
+    std::map<uint32_t,uint32_t> ch_ilp;
+    for(auto &ch : chain_graph){
+        auto ch_it = ch_ilp.find(ch.level);
+        if(ch_it == ch_ilp.end())
+            ch_ilp[ch.level]=1;
+        else
+            ch_it->second++;
+    }
+
+    //Find max ILP
+    for(auto it_ch = ch_ilp.begin(); it_ch != ch_ilp.end(); ++it_ch){
+        if(it_ch->second > m_m){
+            m_m = it_ch->second;
+        }
+    }
+
+    for(auto& c : ch_ilp)
+        sum_ilp += c.second;
+
+
+    //3) MLP
+    std::map<uint32_t,uint32_t> ch_mlp;
+    for(auto &ch : chain_graph){
+        auto ch_it = ch_mlp.find(ch.level);
+        if(ch_it == ch_ilp.end()){
+            if(ch.is_mem)
+                ch_mlp[ch.level]=1;
+        }
+        else{
+            if(ch.is_mem)
+                ch_it->second++;
+        }
+    }
+
+    uint32_t m_max_mlp = 0;
+    for(auto it_ch = ch_mlp.begin(); it_ch != ch_mlp.end(); ++it_ch){
+        if(it_ch->second > m_max_mlp){
+            m_max_mlp = it_ch->second;
+        }
+    }
+
+    //4) Chain size graph histogram
+    std::map<uint32_t, uint32_t> ch_size_histo;
+    for(auto& ch : chain_graph){
+        if(ch.size < 5){
+            auto ch_it = ch_size_histo.find(ch.size);
+            if(ch_it == ch_size_histo.end())
+                ch_size_histo[ch.size] = 1;
+            else
+                ch_size_histo[ch.size]++;
+        }
+        else{
+            auto ch_it = ch_size_histo.find(5);
+            if(ch_it == ch_size_histo.end())
+                ch_size_histo[5] = 1;
+            else
+                ch_size_histo[5]++;
+        }
+
+    }
+
+    //5) Summing intra communication
+    uint32_t m_intra = 0;
+    for(auto& c : chain_graph)
+        m_intra += c.fan_in;
+
+    //6) Live-in and Live-out hitogram
+    std::map<uint32_t, uint32_t> ch_liveIn_hist;
+    std::map<uint32_t, uint32_t> ch_liveOut_hist;
+    for(auto& ch : chain_graph){
+        auto chin_it = ch_liveIn_hist.find(ch.live_in);
+        auto chout_it = ch_liveOut_hist.find(ch.live_out);
+        if(ch.live_in < 5){
+            if(chin_it == ch_liveIn_hist.end())
+                ch_liveIn_hist[ch.live_in] = 1;
+            else
+                ch_liveIn_hist[ch.live_in]++;
+        }
+        else{
+            chin_it = ch_liveIn_hist.find(5);
+            if(chin_it == ch_liveIn_hist.end())
+                ch_liveIn_hist[5] = 1;
+            else
+                ch_liveIn_hist[5]++;
+        }
+
+        //live_out
+
+        if(ch.live_out < 5){
+            if(chout_it == ch_liveOut_hist.end())
+                ch_liveOut_hist[ch.live_out] = 1;
+            else
+                ch_liveOut_hist[ch.live_out]++;
+        }
+        else{
+            chout_it = ch_liveOut_hist.find(5);
+            if(chout_it == ch_liveOut_hist.end())
+                ch_liveOut_hist[5] = 1;
+            else
+                ch_liveOut_hist[5]++;
+        }
+    }
+
+    //4) Chain OP histogram
+    std::map<uint32_t, std::vector<uint32_t>> ch_op_list;
+    for(auto& ch : chain_graph){
+        if(ch.size < 5){
+            for(auto&op : ch.nodes)
+                ch_op_list[ch.size].push_back(op);
+        }
+        else{
+            for(auto&op : ch.nodes)
+                ch_op_list[5].push_back(op);
+        }
+
+    }
+
+    double m_avg_ilp = (double)sum_ilp/(double)ch_ilp.size();
+    double m_avg_length = (double)ch_tot_size/(double)chain_graph.size();
+
+    res << "num_ch, avg_ch_length, max_ch_length, ILP, MAX_ILP, max_level, max_mlp, inter_com, intra_com\n";
+    res << chain_graph.size() << ", " << m_avg_length << ", " << max_size << ", " << 
+        m_avg_ilp << ", " << m_m << ", " << max_level << ", " << max_mlp << ", " << num_ops-1 << ", " << m_intra << endl;
+
+    file << res.str();
+    file.close();
+
+    //Printing histogram
+    f.str("");
+    f << "output/" << str_name << "-chainOpHisto.csv";
+    file.open(f.str());
+    assert(file.is_open() && "Chain size histogram file couldn't be open");
+
+    std::stringstream m_header;
+    for(uint32_t i = 0; i < 5; i++){
+        std::map<std::string, std::uint32_t> temp_hist;
+        auto ch_it = ch_op_list.find(i+1);
+        if(ch_it != ch_op_list.end()){
+            //counting instructions
+            for(auto& ch : ch_it->second){
+                auto n_it = temp_hist.find(comp_graph[ch].type);
+                if(n_it == temp_hist.end())
+                    temp_hist[comp_graph[ch].type] = 1;
+                else
+                    temp_hist[comp_graph[ch].type]++;
+            }
+
+
+            //printing instructions
+            m_header << i+1 << endl;
+            for(auto& ch : temp_hist){
+                m_header << ch.first << ", ";
+            }
+            m_header << "\b\b" << " " << endl;
+
+            for(auto& ch : temp_hist){
+                m_header << ch.second << ", ";
+            }
+            m_header << "\b\b" << " " << endl;
+        }
+
+    }
+    file << m_header.str();
+    file.close();
+
+
+
+
+    //chainsize histogram
+    f.str("");
+    res.str("");
+    f << "output/" << str_name << "-chainSize.csv";
+    file.open(f.str());
+    assert(file.is_open() && "Chain size histogram file couldn't be open");
+    res << "1,2,3,4,5" << endl;
+
+    for(uint32_t i = 0; i < 5 ; ++i){
+        auto ch_it = ch_size_histo.find(i+1);
+        if(ch_it == ch_size_histo.end())
+            res << "0, ";
+        else
+            res << ch_it->second << ", " ;
+    }
+    res << "\b\b" << " " << endl;
+
+    file << res.str();
+    file.close();
+
+
+    //Live-in histogram
+    f.str("");
+    res.str("");
+    f << "output/" << str_name << "-liveInHisto.csv";
+    file.open(f.str());
+    assert(file.is_open() && "Chain size histogram file couldn't be open");
+    res << "1,2,3,4,5" << endl;
+
+    for(uint32_t i = 0; i < 5 ; ++i){
+        auto ch_it = ch_liveIn_hist.find(i+1);
+        if(ch_it == ch_liveIn_hist.end())
+            res << "0, ";
+        else
+            res << ch_it->second << ", " ;
+    }
+    res << "\b\b" << " " << endl;
+
+    file << res.str();
+    file.close();
+
+
+
+    //Live-out histogram
+    f.str("");
+    res.str("");
+    f << "output/" << str_name << "-liveOutHisto.csv";
+    file.open(f.str());
+    assert(file.is_open() && "Chain size histogram file couldn't be open");
+    res << "1,2,3,4,5" << endl;
+
+    for(uint32_t i = 0; i < 5 ; ++i){
+        auto ch_it = ch_liveOut_hist.find(i+1);
+        if(ch_it == ch_liveOut_hist.end())
+            res << "0, ";
+        else
+            res << ch_it->second << ", " ;
+    }
+    res << "\b\b" << " " << endl;
+
+    file << res.str();
+    file.close();
+
+
+    //Chain json file
+    f.str("");
+    res.str("");
+    f << "output/" << str_name << "-chains.json";
+    file.open(f.str());
+    assert(file.is_open() && "Chain output file couldn't create");
+    //res.str("");
+    res << "{ \"Chains\" : [ \n";
+    uint32_t i = 0;
+    for(auto& ch: chain_graph){
+        if(i++ < chain_graph.size()-1){
+            res << "{ \"chain_id\" : " << ch.chainId << ", \"block_id\" : " << ch.blockID <<  ", \"size\" : " << ch.size << ", \"live_in\" : " << ch.live_in << ", \"live_out\" : " <<
+                ch.live_out << ", \"fan_in\" : " << ch.fan_in << ", \"fan_out\" : " << ch.fan_out << ", \"LD\" : " << ch.ld_ins << ", \"ST\" : " <<
+                ch.st_ins << ", \"ALLOCA\" : " << ch.alloca_ins <<", \"other\" : " << ch.other << ", \"level\" : " << ch.level << ", \"nodes\" : [";
+            uint32_t j = 0;
+            if (ch.nodes.size() > 0){
+                for(auto&n : ch.nodes){
+                    if(j++ < ch.nodes.size()-1)
+                        res << "\"" << comp_graph[n].type << "(" << n << ")\"" << ",";
+                    else
+                        res << "\"" << comp_graph[n].type << "(" << n << ")\"" << "]";
+                } 
+            }
+            else
+                res << " ]";
+               
+            res << "},\n";
+        }
+        else{
+             res << "{ \"chain_id\" : " << ch.chainId << ", \"block_id\" : " << ch.blockID << ", \"size\" : " << ch.size << ", \"live_in\" : " << ch.live_in << ", \"live_out\" : " <<
+                ch.live_out << ", \"fan_in\" : " << ch.fan_in << ", \"fan_out\" : " << ch.fan_out << ", \"LD\" : " << ch.ld_ins << ", \"ST\" : " <<
+                ch.st_ins << ", \"ALLOCA\" : " << ch.alloca_ins << ", \"other\" : " << ch.other << ", \"level\" : " << ch.level << ", \"nodes\" : [";
+            uint32_t j = 0;
+            if (ch.nodes.size() > 0){
+                for(auto&n : ch.nodes){
+                    if(j++ < ch.nodes.size()-1)
+                        res << "\"" << comp_graph[n].type << "(" << n << ")\"" << ",";
+                    else
+                        res << "\"" << comp_graph[n].type << "(" << n << ")\"" << "]";
+                } 
+            }
+            else
+                res << " ]";  
+
+            res << "}\n ]}\n" ;
+        }
+    }
+    file << res.str();
+    file.close();
+}
+
+void
+Graph::writeChain(std::string str_name)
+{
+    std::ofstream output_file;
+    std::stringstream f;
+    f << "output/" << str_name << ".dot";
+    output_file.open(f.str(), ios::out);
+    std::stringstream temp_string;
+    temp_string << "digraph G{\n";
+
+    //Writing vertices to the clean graph
+    for(auto& ch : chain_graph){
+        temp_string << ch.chainId << "[id=" << ch.chainId << ", block_id=" << ch.blockID <<
+            ", level=" << ch.level << " style=\"filled\", fillcolor= \"" << brewer_color[ch.blockID % 12]  << "\", fontcolor=\"black\"" << "];\n";
+    }
+
+    for(auto&depen : un_dependencies){
+        for(auto& d: depen.second){
+            temp_string << depen.first << " -> " << d << ";\n";
+        }
+
+    }
+    temp_string << "}";
+    output_file << temp_string.str();
+    output_file.close();
+}
+
+/**
+ * Filling chain levels
+ */
+void
+Graph::buildChainLevel()
+{
+    for(auto& ch: chain_graph)
+        chain_level[ch.level].push_back(ch.chainId);
+}
+
+
+/**
+ * Create chain blocks
+ */
+void
+Graph::createChainBlocks()
+{
+
+    uint32_t i = 0;
+
+    for(auto& ch_l : chain_level){
+        for(auto& ch_id : ch_l.second){
+            auto ch = find_if(chain_graph.begin(), chain_graph.end(),
+                [ch_id](const chainGraph &m) -> bool {return m.chainId == ch_id;});
+
+            if(ch_id == 0){
+                ch->blockID = i;
+                //Block m_cblock(i);
+                //m_cblock.chains.push_back(ch->chainId);
+                //block_chain.push_back(m_cblock);
+                auto ch_it = un_dependencies.find(ch->chainId);
+                for(auto& child: ch_it->second){
+                    //set child blockID
+                    auto m_it = std::find_if(chain_graph.begin(), chain_graph.end(),
+                            [child](const chainGraph &m) -> bool {return m.chainId == child;});
+                    if(m_it->level == 1){
+                        m_it->blockID = ++i;
+
+                        //Block temp_block(i);
+                        //temp_block.chains.push_back(child);
+                        //block_chain.push_back(temp_block);
+                    }
+                }
+            }
+            else{
+                auto ch_it = un_dependencies.find(ch->chainId);
+                if(ch_it != un_dependencies.end()){
+                    for(auto& child : ch_it->second){
+
+                        auto parent_it = un_reverse_mapping.find(child);
+
+                        bool is_single_parent = false;
+                        if(parent_it->second.size() == 2)
+                            is_single_parent = parent_it->second.find(0) != parent_it->second.end();
+
+                        if(is_single_parent){
+                            auto child_it = find_if(chain_graph.begin(), chain_graph.end(),
+                                [child](const chainGraph &m) -> bool {return m.chainId == child;});
+                            child_it->blockID = ch->blockID;
+                        }
+
+                        else{
+                            //set child blockID
+                            auto m_it = std::find_if(chain_graph.begin(), chain_graph.end(),
+                                    [child](const chainGraph &m) -> bool {return m.chainId == child;});
+                            m_it->blockID = ++i;
+                            
+                            //Block temp_block(i);
+                            //temp_block.chains.push_back(child);
+                            //block_chain.push_back(temp_block);
+
+
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for(auto& ch : chain_graph){
+        uint32_t temp_blID = ch.blockID;
+        auto bl = find_if(block_chain.begin(), block_chain.end(),
+            [temp_blID](const Block &m) -> bool {
+            return m.blkID == temp_blID;
+            });
+
+        if(bl == block_chain.end()){
+            Block new_bl(temp_blID);
+            new_bl.chains.push_back(ch.chainId);
+            block_chain.push_back(new_bl);
+        }
+        else{
+            bl->chains.push_back(ch.chainId);
+        }
+
+    }
+}
+
+
+void
+Graph::breakChains()
+{
+    while(Chains.size() < num_ops){
+        for(auto& ch : Chains){
+            if(ch.size() > 1){
+                std::vector<uint64_t> new_vec(std::make_move_iterator(ch.begin() + 1),
+                        std::make_move_iterator(ch.end()));
+                ch.erase(ch.begin()+=1, ch.end());
+                Chains.push_back(new_vec);
+                break;
+            }
+        }
+    }
+}

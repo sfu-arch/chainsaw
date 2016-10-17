@@ -1,0 +1,17 @@
+#Makefile.include for the simple network
+DRAM_VPATH := DRAM/
+DRAM_SRC_CPP = \
+	AddressMapping.C \
+	Bank.C \
+	BankState.C \
+	BusPacket.C \
+	CommandQueue.C \
+	IniReader.C \
+	MemoryController.C \
+	MemorySystem.C \
+	MultiChannelMemorySystem.C \
+	Rank.C \
+	Macros.C \
+	SimulatorObject.C \
+	Transaction.C \
+

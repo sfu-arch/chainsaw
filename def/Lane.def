@@ -1,0 +1,11 @@
+/* CORE PARAMETERS */
+
+//Defining memory modes:
+// 1) Simple memory mode:       1
+// 2) Ruby memory mode:         2
+
+param<L1_MISS_LATENCY,      1>
+param<L2_MISS_LATENCY,      25>
+param<L3_MISS_LATENCY,      100>
+param<FETCH_DELAY,        2>
+param<DECODE_DELAY,       2>

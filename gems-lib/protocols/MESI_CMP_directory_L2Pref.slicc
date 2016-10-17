@@ -1,0 +1,6 @@
+../protocols/prefetch-2level/MESI_CMP_directory-msg.sm
+../protocols/prefetch-2level/MESI_CMP_directory-L2cache.sm
+../protocols/prefetch-2level/MESI_CMP_directory-L1cache.sm
+../protocols/prefetch-2level/MESI_CMP_directory-mem_m.sm
+../protocols/standard_CMP-protocol.sm
+

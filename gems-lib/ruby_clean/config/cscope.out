@@ -1,0 +1,1298 @@
+cscope 15 $HOME/sqrl/gems-lib-ooo/ruby_clean/config               0000009259
+	@RubyConfig.C
+
+66 
+	~"RubyC⁄fig.h
+"
+
+67 
+	~"¥Ÿocﬁ_«me.h
+"
+
+68 
+	~"utû.h
+"
+
+70 
+	~"PrŸocﬁ.h
+"
+
+72 
+	#CHECK_POWER_OF_2
+(
+N
+Ë{ i‡(!
+	`is_powî_of_2
+(N)Ë{ 
+	`ERROR_MSG
+(#N " mu° bê®powî o‡2."); }}
+
+	)
+
+73 
+	#CHECK_ZERO
+(
+N
+Ë{ i‡(N !0Ë{ 
+	`ERROR_MSG
+(#N " mu° bêzîÿ© inôüliz©i⁄."); }}
+
+	)
+
+74 
+	#CHECK_NON_ZERO
+(
+N
+Ë{ i‡(N =0Ë{ 
+	`ERROR_MSG
+(#N " mu° bên⁄-zîo."); }}
+
+	)
+
+77 
+	gRubyC⁄fig
+::
+	$öô
+()
+
+80 
+	`CHECK_NON_ZERO
+(
+MEM_BUS_CYCLE_MULTIPLIER
+);
+
+81 
+	`CHECK_NON_ZERO
+(
+BANKS_PER_RANK
+);
+
+82 
+	`CHECK_NON_ZERO
+(
+RANKS_PER_DIMM
+);
+
+83 
+	`CHECK_NON_ZERO
+(
+DIMMS_PER_CHANNEL
+);
+
+84 
+	`CHECK_NON_ZERO
+(
+BANK_QUEUE_SIZE
+);
+
+85 
+	`CHECK_NON_ZERO
+(
+BANK_BUSY_TIME
+);
+
+86 
+	`CHECK_NON_ZERO
+(
+MEM_CTL_LATENCY
+);
+
+87 
+	`CHECK_NON_ZERO
+(
+REFRESH_PERIOD
+);
+
+88 
+	`CHECK_NON_ZERO
+(
+BASIC_BUS_BUSY_TIME
+);
+
+90 
+	`CHECK_POWER_OF_2
+(
+BANKS_PER_RANK
+);
+
+91 
+	`CHECK_POWER_OF_2
+(
+RANKS_PER_DIMM
+);
+
+92 
+	`CHECK_POWER_OF_2
+(
+DIMMS_PER_CHANNEL
+);
+
+94 
+	`CHECK_NON_ZERO
+(
+g_MEMORY_SIZE_BYTES
+);
+
+95 
+	`CHECK_NON_ZERO
+(
+g_DATA_BLOCK_BYTES
+);
+
+96 
+	`CHECK_NON_ZERO
+(
+g_PAGE_SIZE_BYTES
+);
+
+97 
+	`CHECK_NON_ZERO
+(
+g_NUM_PROCESSORS
+);
+
+98 
+	`CHECK_NON_ZERO
+(
+g_PROCS_PER_CHIP
+);
+
+99 if(
+g_NUM_SMT_THREADS
+ == 0){
+
+100 
+g_NUM_SMT_THREADS
+ = 1;
+
+102 i‡(
+g_NUM_L2_BANKS
+ == 0) {
+
+103 
+g_NUM_L2_BANKS
+ = 
+g_NUM_PROCESSORS
+;
+
+105 i‡(
+g_NUM_MEMORIES
+ == 0) {
+
+106 
+g_NUM_MEMORIES
+ = 
+g_NUM_PROCESSORS
+;
+
+109 
+	`CHECK_ZERO
+(
+g_MEMORY_SIZE_BITS
+);
+
+110 
+	`CHECK_ZERO
+(
+g_DATA_BLOCK_BITS
+);
+
+111 
+	`CHECK_ZERO
+(
+g_PAGE_SIZE_BITS
+);
+
+112 
+	`CHECK_ZERO
+(
+g_NUM_PROCESSORS_BITS
+);
+
+113 
+	`CHECK_ZERO
+(
+g_NUM_CHIP_BITS
+);
+
+114 
+	`CHECK_ZERO
+(
+g_NUM_L2_BANKS_BITS
+);
+
+115 
+	`CHECK_ZERO
+(
+g_NUM_MEMORIES_BITS
+);
+
+116 
+	`CHECK_ZERO
+(
+g_PROCS_PER_CHIP_BITS
+);
+
+117 
+	`CHECK_ZERO
+(
+g_NUM_L2_BANKS_PER_CHIP
+);
+
+118 
+	`CHECK_ZERO
+(
+g_NUM_L2_BANKS_PER_CHIP_BITS
+);
+
+119 
+	`CHECK_ZERO
+(
+g_NUM_MEMORIES_BITS
+);
+
+120 
+	`CHECK_ZERO
+(
+g_MEMORY_MODULE_BLOCKS
+);
+
+121 
+	`CHECK_ZERO
+(
+g_MEMORY_MODULE_BITS
+);
+
+122 
+	`CHECK_ZERO
+(
+g_NUM_MEMORIES_PER_CHIP
+);
+
+124 
+	`CHECK_POWER_OF_2
+(
+g_MEMORY_SIZE_BYTES
+);
+
+125 
+	`CHECK_POWER_OF_2
+(
+g_DATA_BLOCK_BYTES
+);
+
+126 
+	`CHECK_POWER_OF_2
+(
+g_NUM_PROCESSORS
+);
+
+127 
+	`CHECK_POWER_OF_2
+(
+g_NUM_L2_BANKS
+);
+
+128 
+	`CHECK_POWER_OF_2
+(
+g_NUM_MEMORIES
+);
+
+129 
+	`CHECK_POWER_OF_2
+(
+g_PROCS_PER_CHIP
+);
+
+131 
+	`ASSERT
+(
+g_NUM_PROCESSORS
+ >
+g_PROCS_PER_CHIP
+);
+
+132 
+g_NUM_CHIPS
+ = 
+g_NUM_PROCESSORS
+/
+g_PROCS_PER_CHIP
+;
+
+133 
+	`ASSERT
+(
+g_NUM_L2_BANKS
+ >
+g_NUM_CHIPS
+);
+
+135 
+g_NUM_L2_BANKS_PER_CHIP
+ = 
+g_NUM_L2_BANKS
+/
+g_NUM_CHIPS
+;
+
+137 
+	`ASSERT
+(
+L2_CACHE_NUM_SETS_BITS
+ > 
+	`log_öt
+(
+g_NUM_L2_BANKS_PER_CHIP
+));
+
+138 
+L2_CACHE_NUM_SETS_BITS
+ = L2_CACHE_NUM_SETS_BITS - 
+	`log_öt
+(
+g_NUM_L2_BANKS_PER_CHIP
+);
+
+140 i‡(
+g_NUM_CHIPS
+ > 
+g_NUM_MEMORIES
+) {
+
+141 
+g_NUM_MEMORIES_PER_CHIP
+ = 1;
+
+143 
+g_NUM_MEMORIES_PER_CHIP
+ = 
+g_NUM_MEMORIES
+/
+g_NUM_CHIPS
+;
+
+146 
+g_NUM_CHIP_BITS
+ = 
+	`log_öt
+(
+g_NUM_CHIPS
+);
+
+147 
+g_MEMORY_SIZE_BITS
+ = 
+	`log_öt
+(
+g_MEMORY_SIZE_BYTES
+);
+
+148 
+g_DATA_BLOCK_BITS
+ = 
+	`log_öt
+(
+g_DATA_BLOCK_BYTES
+);
+
+149 
+g_PAGE_SIZE_BITS
+ = 
+	`log_öt
+(
+g_PAGE_SIZE_BYTES
+);
+
+150 
+g_NUM_PROCESSORS_BITS
+ = 
+	`log_öt
+(
+g_NUM_PROCESSORS
+);
+
+151 
+g_NUM_L2_BANKS_BITS
+ = 
+	`log_öt
+(
+g_NUM_L2_BANKS
+);
+
+152 
+g_NUM_L2_BANKS_PER_CHIP_BITS
+ = 
+	`log_öt
+(
+g_NUM_L2_BANKS_PER_CHIP
+);
+
+153 
+g_NUM_MEMORIES_BITS
+ = 
+	`log_öt
+(
+g_NUM_MEMORIES
+);
+
+154 
+g_PROCS_PER_CHIP_BITS
+ = 
+	`log_öt
+(
+g_PROCS_PER_CHIP
+);
+
+156 
+g_MEMORY_MODULE_BITS
+ = 
+g_MEMORY_SIZE_BITS
+ - 
+g_DATA_BLOCK_BITS
+ - 
+g_NUM_MEMORIES_BITS
+;
+
+158 
+g_MEMORY_MODULE_BLOCKS
+ = (
+	`öt64
+(1Ë<< 
+g_MEMORY_MODULE_BITS
+);
+
+161 i‡((!
+PrŸocﬁ
+::
+m_CMP
+Ë&& (
+g_PROCS_PER_CHIP
+ > 1)) {
+
+162 
+	`ERROR_MSG
+("Non-CMPÖrotocol should set g_PROCS_PER_CHIPÅo 1");
+
+166 
+	`§™dom
+(
+g_RANDOM_SEED
+);
+
+167 
+	}
+}
+
+169 
+	gRubyC⁄fig
+::
+	$L1CacheNumToL2Ba£
+(
+NodeID
+ 
+L1CacheNum
+)
+
+171  
+L1CacheNum
+/
+g_PROCS_PER_CHIP
+;
+
+172 
+	}
+}
+
+174 
+	$¥öt_∑ømëîs
+(
+o°ªam
+& 
+out
+)
+
+177 
+	#PARAM
+(
+NAME
+Ë{ 
+out
+ << #NAME << ": " << NAME << 
+ídl
+; }
+
+	)
+
+178 
+	#PARAM_UINT
+(
+NAME
+Ë{ 
+out
+ << #NAME << ": " << NAME << 
+ídl
+; }
+
+	)
+
+179 
+	#PARAM_ULONG
+(
+NAME
+Ë{ 
+out
+ << #NAME << ": " << NAME << 
+ídl
+; }
+
+	)
+
+180 
+	#PARAM_BOOL
+(
+NAME
+Ë{ 
+out
+ << #NAME << ": " << 
+	`boﬁ_to_°rög
+(NAMEË<< 
+ídl
+; }
+
+	)
+
+181 
+	#PARAM_DOUBLE
+(
+NAME
+Ë{ 
+out
+ << #NAME << ": " << NAME << 
+ídl
+; }
+
+	)
+
+182 
+	#PARAM_STRING
+(
+NAME
+Ë{ 
+	`as£π
+(NAME !
+NULL
+); 
+out
+ << #NAME << ": " << 
+	`°rög
+(NAMEË<< 
+ídl
+; }
+
+	)
+
+183 
+	#PARAM_ARRAY
+(
+PTYPE
+, 
+NAME
+, 
+ARRAY_SIZE
+) \
+
+185 
+out
+ << #NAME << ": ("; \
+
+186 
+i
+ = 0; i < 
+ARRAY_SIZE
+; i++) { \
+
+187 i‡(
+i
+ != 0) { \
+
+188 
+out
+ << ", "; \
+
+190 
+out
+ << 
+NAME
+[
+i
+]; \
+
+192 
+out
+ << ")" << 
+ídl
+; \
+
+194 
+
+	)
+
+196 #ö˛udê
+CONFIG_VAR_FILENAME
+
+
+197 #unde‡
+PARAM
+
+
+198 #unde‡
+PARAM_UINT
+
+
+199 #unde‡
+PARAM_ULONG
+
+
+200 #unde‡
+PARAM_BOOL
+
+
+201 #unde‡
+PARAM_DOUBLE
+
+
+202 #unde‡
+PARAM_STRING
+
+
+203 #unde‡
+PARAM_ARRAY
+
+
+204 
+	}
+}
+
+206 
+	gRubyC⁄fig
+::
+	$¥ötC⁄figuøti⁄
+(
+o°ªam
+& 
+out
+) {
+
+207 
+out
+ << "Ruby C⁄figuøti⁄" << 
+ídl
+;
+
+208 
+out
+ << "------------------" << 
+ídl
+;
+
+210 
+out
+ << "¥Ÿocﬁ: " << 
+CURRENT_PROTOCOL
+ << 
+ídl
+;
+
+212 
+out
+ << "compûed_©: " << 
+__TIME__
+ << ", " << 
+__DATE__
+ << 
+ídl
+;
+
+213 
+out
+ << "RUBY_DEBUG: " << 
+	`boﬁ_to_°rög
+(
+RUBY_DEBUG
+Ë<< 
+ídl
+;
+
+215 
+buf„r
+[100];
+
+216 
+	`gëho°«me
+(
+buf„r
+, 50);
+
+217 
+out
+ << "ho°«me: " << 
+buf„r
+ << 
+ídl
+;
+
+219 
+	`¥öt_∑ømëîs
+(
+out
+);
+
+220 
+	}
+}
+
+	@RubyConfig.h
+
+67 #i‚de‡
+RUBYCONFIG_H
+
+
+68 
+	#RUBYCONFIG_H
+
+
+	)
+
+70 
+	~"GlobÆ.h
+"
+
+71 
+	#CONFIG_VAR_FILENAME
+ "c⁄fig.ö˛ude"
+
+	)
+
+72 
+	~"v¨de˛.h
+"
+
+73 
+	~"NodeID.h
+"
+
+75 
+	#MEMORY_LATENCY
+ 
+RubyC⁄fig
+::
+	`mem‹yRe•⁄£L©ícy
+()
+
+	)
+
+76 
+	#ABORT_DELAY
+ 
+m_chù_±r
+->
+	`gëTønß˘i⁄M™agî
+(
+m_vîsi⁄
+)->
+	`gëAb‹tDñay
+()
+
+	)
+
+90 c⁄° 
+	gNUMBER_WORDS_PER_SET
+ = 4;
+
+92 ˛as†
+	cRubyC⁄fig
+ {
+
+93 
+	mpublic
+:
+
+96 
+	$d©aBlockBôs
+(Ë{  
+g_DATA_BLOCK_BITS
+; }
+
+97 
+	$d©aBlockByãs
+(Ë{  
+g_DATA_BLOCK_BYTES
+; 
+	}
+}
+
+100 
+	$∑geSizeBôs
+(Ë{  
+g_PAGE_SIZE_BITS
+; 
+	}
+}
+
+101 
+	$∑geSizeByãs
+(Ë{  
+g_PAGE_SIZE_BYTES
+; 
+	}
+}
+
+102 
+	$mem‹ySizeBôs
+(Ë{  
+g_MEMORY_SIZE_BITS
+; 
+	}
+}
+
+103 
+öt64
+ 
+	$mem‹ySizeByãs
+(Ë{  
+g_MEMORY_SIZE_BYTES
+; 
+	}
+}
+
+104 
+	$mem‹yModuÀBôs
+(Ë{  
+g_MEMORY_MODULE_BITS
+; 
+	}
+}
+
+105 
+öt64
+ 
+	$mem‹yModuÀBlocks
+(Ë{  
+g_MEMORY_MODULE_BLOCKS
+; 
+	}
+}
+
+108 
+	$numbîofSMTThªads
+(Ë{  
+g_NUM_SMT_THREADS
+; 
+	}
+}
+
+110 
+	$numbîOfPro˚ss‹s
+(Ë{  
+g_NUM_PROCESSORS
+; 
+	}
+}
+
+111 
+	$¥ocsPîChùBôs
+(Ë{  
+g_PROCS_PER_CHIP_BITS
+; 
+	}
+}
+
+112 
+	$numbîOfProcsPîChù
+(Ë{  
+g_PROCS_PER_CHIP
+; 
+	}
+}
+
+113 
+	$numbîOfChùs
+(Ë{  
+g_NUM_CHIPS
+; 
+	}
+}
+
+120 
+	$L1CacheBôs
+(Ë{  
+g_NUM_PROCESSORS_BITS
+; 
+	}
+}
+
+121 
+	$numbîOfL1Cache
+(Ë{  
+g_NUM_PROCESSORS
+; 
+	}
+}
+
+122 
+	$L1CachePîChùBôs
+(Ë{  
+	`¥ocsPîChùBôs
+(Ë; 
+	}
+}
+
+123 
+	$numbîOfL1CachePîChù
+(Ë{  
+	`numbîOfProcsPîChù
+(); 
+	}
+}
+
+124 
+	$numbîOfL1CachePîChù
+(
+NodeID
+ 
+myNodeID
+Ë{  
+	`numbîOfL1CachePîChù
+(); 
+	}
+}
+
+125 
+	$L1CacheTønsôi⁄sPîCy˛e
+(Ë{  
+L1CACHE_TRANSITIONS_PER_RUBY_CYCLE
+; 
+	}
+}
+
+129 
+	$L2CacheBôs
+(Ë{  
+g_NUM_L2_BANKS_BITS
+; 
+	}
+}
+
+130 
+	$numbîOfL2Cache
+(Ë{  
+g_NUM_L2_BANKS
+; 
+	}
+}
+
+131 
+L1CacheNumToL2Ba£
+(
+NodeID
+ 
+L1RubyNodeID
+);
+
+132 
+	$L2CachePîChùBôs
+(Ë{  
+g_NUM_L2_BANKS_PER_CHIP_BITS
+; 
+	}
+}
+
+133 
+	$numbîOfL2CachePîChù
+(Ë{  
+g_NUM_L2_BANKS_PER_CHIP
+; 
+	}
+}
+
+134 
+	$numbîOfL2CachePîChù
+(
+NodeID
+ 
+myNodeID
+Ë{  
+	`numbîOfL2CachePîChù
+(); 
+	}
+}
+
+135 
+	$L2CacheTønsôi⁄sPîCy˛e
+(Ë{  
+L2CACHE_TRANSITIONS_PER_RUBY_CYCLE
+; 
+	}
+}
+
+139 
+	$mem‹yBôs
+(Ë{  
+g_NUM_MEMORIES_BITS
+; 
+	}
+}
+
+140 
+	$numbîOfDúe˘‹y
+(Ë{  
+	`numbîOfMem‹õs
+(); 
+	}
+}
+
+141 
+	$numbîOfMem‹õs
+(Ë{  
+g_NUM_MEMORIES
+; 
+	}
+}
+
+142 
+	$numbîOfDúe˘‹yPîChù
+(Ë{  
+g_NUM_MEMORIES_PER_CHIP
+; 
+	}
+}
+
+143 
+	$numbîOfDúe˘‹yPîChù
+(
+NodeID
+ 
+myNodeID
+Ë{  
+g_NUM_MEMORIES_PER_CHIP
+; 
+	}
+}
+
+144 
+	$Dúe˘‹yTønsôi⁄sPîCy˛e
+(Ë{  
+DIRECTORY_TRANSITIONS_PER_RUBY_CYCLE
+; 
+	}
+}
+
+147 
+	$numbîOfPîsi°ítArbôî
+(Ë{  
+	`numbîOfMem‹õs
+(); 
+	}
+}
+
+148 
+	$numbîOfPîsi°ítArbôîPîChù
+(Ë{ 
+	`numbîOfDúe˘‹yPîChù
+(); 
+	}
+}
+
+149 
+	$numbîOfPîsi°ítArbôîPîChù
+(
+NodeID
+ 
+myNodeID
+Ë{ 
+	`numbîOfDúe˘‹yPîChù
+(myNodeID); 
+	}
+}
+
+150 
+	$Pîsi°ítArbôîTønsôi⁄sPîCy˛e
+(Ë{  
+L2CACHE_TRANSITIONS_PER_RUBY_CYCLE
+; 
+	}
+}
+
+157 
+	$mem‹yRe•⁄£L©ícy
+(Ë{  
+MEMORY_RESPONSE_LATENCY_MINUS_2
++(
+	`øndom
+(Ë% 5); 
+	}
+}
+
+159 
+öô
+();
+
+160 
+¥ötC⁄figuøti⁄
+(
+o°ªam
+& 
+out
+);
+
+163 
+	$memBusCy˛eMu…ùlõr
+ (Ë{  
+MEM_BUS_CYCLE_MULTIPLIER
+; 
+	}
+}
+
+164 
+	$b™ksPîR™k
+ (Ë{  
+BANKS_PER_RANK
+; 
+	}
+}
+
+165 
+	$ønksPîDimm
+ (Ë{  
+RANKS_PER_DIMM
+; 
+	}
+}
+
+166 
+	$dimmsPîCh™√l
+ (Ë{  
+DIMMS_PER_CHANNEL
+; 
+	}
+}
+
+167 
+	$b™kBô0
+ (Ë{  
+BANK_BIT_0
+; 
+	}
+}
+
+168 
+	$ønkBô0
+ (Ë{  
+RANK_BIT_0
+; 
+	}
+}
+
+169 
+	$dimmBô0
+ (Ë{  
+DIMM_BIT_0
+; 
+	}
+}
+
+170 
+	$b™kQueueSize
+ (Ë{  
+BANK_QUEUE_SIZE
+; 
+	}
+}
+
+171 
+	$b™kBusyTime
+ (Ë{  
+BANK_BUSY_TIME
+; 
+	}
+}
+
+172 
+	$ønkR™kDñay
+ (Ë{  
+RANK_RANK_DELAY
+; 
+	}
+}
+
+173 
+	$ªadWrôeDñay
+ (Ë{  
+READ_WRITE_DELAY
+; 
+	}
+}
+
+174 
+	$basicBusBusyTime
+ (Ë{  
+BASIC_BUS_BUSY_TIME
+; 
+	}
+}
+
+175 
+	$memCéL©ícy
+ (Ë{  
+MEM_CTL_LATENCY
+; 
+	}
+}
+
+176 
+	$ª‰eshPîiod
+ (Ë{  
+REFRESH_PERIOD
+; 
+	}
+}
+
+177 
+	$tFaw
+ (Ë{  
+TFAW
+; 
+	}
+}
+
+178 
+	$memR™domArbôøã
+ (Ë{  
+MEM_RANDOM_ARBITRATE
+; 
+	}
+}
+
+179 
+	$memFixedDñay
+ (Ë{  
+MEM_FIXED_DELAY
+; 
+	}
+}
+
+181 
+	g¥iv©e
+:
+
+	@
+1
+.
+1
+/usr/include
+2
+26
+RubyConfig.C
+RubyConfig.h

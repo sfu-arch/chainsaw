@@ -1,0 +1,5 @@
+      1   0  -1        Seq               Begin       >       [0x400, line 0x400] LD
+      5   0   0    L1Cache                Load      I>IS     [0x400, line 0x400] 
+     20   0   8  Directory                GETX      I>M      [0x400, line 0x400] 
+    196   0  -1        Seq                Done       >       [0x400, line 0x400] 195 cycles NULL LD No
+    196   0   0    L1Cache                Data     IS>M      [0x400, line 0x400] 

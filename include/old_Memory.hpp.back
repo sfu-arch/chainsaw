@@ -1,0 +1,164 @@
+#ifndef __MEMORY__
+#define __MEMORY__
+
+#include "common.hpp"
+#include "O3sim_ruby.h"
+//#include "global_types.h"
+
+#define MSHR_ENTRY_LIMIT 10
+#define RUBY_LINE_SIZE  16
+
+typedef uint32_t MemCycle;
+typedef uint64_t Addr;
+
+enum memory_t{
+    MEM_LD_R = 1,
+    MEM_ST_R = 2
+};
+
+
+struct mem_req {
+    uint32_t m_id;              /** unique request id */
+    uint32_t m_lane_id;         /** Lane id */
+    uint32_t m_thread_id;
+    memory_t m_type;            /** Request type */
+    Addr m_addr;                /** Request Addr */
+    bool is_write;              /** MEM type(LD/ST) */
+
+    mem_req(uint32_t id, Addr ad, bool type):m_id{0}, m_lane_id{id}, m_thread_id{0}, m_type{MEM_LD_R}, m_addr{ad}, is_write{type}{};
+    mem_req():mem_req(0,0,false){};
+
+};
+
+template <class T>
+inline void hash_combine(std::size_t & seed, const T & v)
+{
+  std::hash<T> hasher;
+  seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
+namespace std
+{
+  template<typename S, typename T> struct hash<pair<S, T>>
+  {
+    inline size_t operator()(const pair<S, T> & v) const
+    {
+      size_t seed = 0;
+      ::hash_combine(seed, v.first);
+      ::hash_combine(seed, v.second);
+      return seed;
+    }
+  };
+}
+
+
+
+
+class Memory
+{
+    private:
+        //Adding ruby memory system
+        O3sim_ruby* m_ruby;
+        //--------------------------------
+        std::unordered_map< std::pair<uint64_t,uint64_t>, MemValue > memaddr_map;
+        std::list<MemValue_t> ldst_addr_buffer;
+        //--------------------------------
+        int m_num_core=1; /**< number of cores */
+        int m_num_l3=1; /**< number of l3 caches */
+        int m_num_mc=1; /**< number of memory controllers */
+        int m_core_id=0;
+        int m_thread_id=0;
+
+        uint32_t num_lanes;
+        uint32_t mem_cnt;
+        std::vector<std::list<mem_req>> m_mshr;
+        std::vector<std::list<mem_req>> m_mshr_free_list;
+        O3sim_ruby *m_ruby;
+        uint64_t m_cycle;
+
+    public:
+
+        //std::list<std::tuple<uint32_t, Addr>> in_list;
+        std::queue<std::tuple<uint32_t, Addr, bool>> in_queue;
+        std::queue<std::tuple<uint32_t, Addr, MemCycle, bool>> out_queue;
+
+        Memory(uint32_t nl, O3sim_ruby* _ruby):num_lanes{nl}, mem_cnt{0}, m_mshr{nl}, m_mshr_free_list{nl},m_cycle{0}{
+            //Initilizing ruby
+            //m_ruby = new O3sim_ruby(1, false,
+                    //4, 1, true, true, 1 ,"lq","high","/dev/null");
+            //m_ruby->initialize();
+
+            for(auto& m : m_mshr_free_list){
+                std::list<mem_req> temp_list;
+                for(uint32_t i = 0; i < MSHR_ENTRY_LIMIT; ++i){
+                    mem_req temp_m;
+                    m.push_back(temp_m);
+                }
+            }
+
+            m_ruby = _ruby;
+        }
+        
+        ~Memory()
+        {
+            //delete m_ruby;
+        }
+
+        /**
+         * Pushing mem_req into memory in_list 
+         */
+        void push_mem_req(std::tuple<uint32_t, Addr, bool> req);
+
+        /**
+         * Poping req from out_queue
+         */
+        std::tuple<uint32_t, Addr, MemCycle, bool> pop_mem_req();
+
+        /**
+         * Start fetching from input list and send request to Ruby
+         */
+        void access();
+
+        /**
+         * Starting new mem req
+         */
+        uint32_t new_mem_req(mem_req req, uint32_t m_size_line);
+
+        /**
+         * Searching MSHR to find a request return TRUE of the search
+         * is succesfull
+         */
+        bool search_req(mem_req m_req);
+
+        /**
+         * Allocating an entry from MSHR
+         */
+        bool allocate_new_entry(mem_req req);
+
+        /**
+         * Searching for a request in MSHR
+         */
+        bool search_mshr_req(mem_req req);
+
+        /**
+         * Checking Ruby Queue and pop ready MEM operations
+         */
+        void process_mshr(uint32_t lane_id);
+
+        /**
+         * Runnning Ruby one cycle
+         */
+        void run_a_cycle();
+
+        /**
+         * Running one cycle for each lane
+         */
+        void run_a_cycle_lanes();
+
+        /**
+         * Set ruby's pointer
+         */
+        void set_ruby(O3sim_ruby* mac_ruby);
+};
+
+#endif

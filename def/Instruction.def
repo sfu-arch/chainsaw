@@ -1,0 +1,106 @@
+//File that describe LLVM instructions
+
+// Terminator Instructions - These instructions are used to terminate a basic
+// block of the program.   Every basic block must end with one of these
+// instructions for it to be a well formed basic block.
+//
+
+
+ FIRST_TERM_INST  ( 1)
+HANDLE_TERM_INST  ( 1, Ret           , ReturnInst       ,   2)
+HANDLE_TERM_INST  ( 2, Br            , BranchInst       ,   2)
+HANDLE_TERM_INST  ( 3, Switch        , SwitchInst       ,   2)
+HANDLE_TERM_INST  ( 4, IndirectBr    , IndirectBrInst   ,   2)
+HANDLE_TERM_INST  ( 5, Invoke        , InvokeInst       ,   2)
+HANDLE_TERM_INST  ( 6, Resume        , ResumeInst       ,   2)
+HANDLE_TERM_INST  ( 7, Unreachable   , UnreachableInst  ,   2)
+HANDLE_TERM_INST  ( 8, CleanupRet    , CleanupReturnInst,   2)
+HANDLE_TERM_INST  ( 9, CatchRet      , CatchReturnInst  ,   2)
+HANDLE_TERM_INST  (10, CatchSwitch   , CatchSwitchInst  ,   2)
+  LAST_TERM_INST  (10)
+
+// Standard binary operators...
+ FIRST_BINARY_INST(11)
+HANDLE_BINARY_INST(11, Add  , BinaryOperator    ,    2)
+HANDLE_BINARY_INST(12, FAdd , BinaryOperator    ,    2)
+HANDLE_BINARY_INST(13, Sub  , BinaryOperator    ,    2)
+HANDLE_BINARY_INST(14, FSub , BinaryOperator    ,    5)
+HANDLE_BINARY_INST(15, Mul  , BinaryOperator    ,    2)
+HANDLE_BINARY_INST(16, FMul , BinaryOperator    ,    5)
+HANDLE_BINARY_INST(17, UDiv , BinaryOperator    ,    2)
+HANDLE_BINARY_INST(18, SDiv , BinaryOperator    ,    2)
+HANDLE_BINARY_INST(19, FDiv , BinaryOperator    ,    5)
+HANDLE_BINARY_INST(20, URem , BinaryOperator    ,    2)
+HANDLE_BINARY_INST(21, SRem , BinaryOperator    ,    2)
+HANDLE_BINARY_INST(22, FRem , BinaryOperator    ,    5)
+
+// Logical operators (integer operands)
+HANDLE_BINARY_INST(23, Shl  , BinaryOperator    ,   2) // Shift left  (logical)
+HANDLE_BINARY_INST(24, LShr , BinaryOperator    ,   2) // Shift right (logical)
+HANDLE_BINARY_INST(25, AShr , BinaryOperator    ,   2) // Shift right (arithmetic)
+HANDLE_BINARY_INST(26, And  , BinaryOperator    ,   2)
+HANDLE_BINARY_INST(27, Or   , BinaryOperator    ,   2)
+HANDLE_BINARY_INST(28, Xor  , BinaryOperator    ,   2)
+  LAST_BINARY_INST(28)
+
+// Memory operators...
+ FIRST_MEMORY_INST(29)
+HANDLE_MEMORY_INST(29, Alloca, AllocaInst       ,   2)  // Stack management
+HANDLE_MEMORY_INST(30, Load  , LoadInst         ,   2)  // Memory manipulation instrs
+HANDLE_MEMORY_INST(31, Store , StoreInst        ,   2)
+HANDLE_MEMORY_INST(32, GetElementPtr, GetElementPtrInst ,   2)
+HANDLE_MEMORY_INST(33, Fence , FenceInst        ,   2)
+HANDLE_MEMORY_INST(34, AtomicCmpXchg , AtomicCmpXchgInst ,  2)
+HANDLE_MEMORY_INST(35, AtomicRMW , AtomicRMWInst ,          2)
+  LAST_MEMORY_INST(35)
+
+// Cast operators ...
+// NOTE: The order matters here because CastInst::isEliminableCastPair
+// NOTE: (see Instructions.cpp) encodes a table based on this ordering.
+ FIRST_CAST_INST(36)
+HANDLE_CAST_INST(36, Trunc   , TruncInst    ,   2)  // Truncate integers
+HANDLE_CAST_INST(37, ZExt    , ZExtInst     ,   2)  // Zero extend integers
+HANDLE_CAST_INST(38, SExt    , SExtInst     ,   2)  // Sign extend integers
+HANDLE_CAST_INST(39, FPToUI  , FPToUIInst   ,   2)  // floating point -> UInt
+HANDLE_CAST_INST(40, FPToSI  , FPToSIInst   ,   2)  // floating point -> SInt
+HANDLE_CAST_INST(41, UIToFP  , UIToFPInst   ,   2)  // UInt -> floating point
+HANDLE_CAST_INST(42, SIToFP  , SIToFPInst   ,   2)  // SInt -> floating point
+HANDLE_CAST_INST(43, FPTrunc , FPTruncInst  ,   2)  // Truncate floating point
+HANDLE_CAST_INST(44, FPExt   , FPExtInst    ,   2)  // Extend floating point
+HANDLE_CAST_INST(45, PtrToInt, PtrToIntInst ,   2)  // Pointer -> Integer
+HANDLE_CAST_INST(46, IntToPtr, IntToPtrInst ,   2)  // Integer -> Pointer
+HANDLE_CAST_INST(47, BitCast , BitCastInst  ,   2)  // Type cast
+HANDLE_CAST_INST(48, AddrSpaceCast, AddrSpaceCastInst , 2)  // addrspace cast
+  LAST_CAST_INST(48)
+
+ FIRST_FUNCLETPAD_INST(49)
+HANDLE_FUNCLETPAD_INST(49, CleanupPad, CleanupPadInst ,     2)
+HANDLE_FUNCLETPAD_INST(50, CatchPad  , CatchPadInst ,       2)
+  LAST_FUNCLETPAD_INST(50)
+
+// Other operators...
+ FIRST_OTHER_INST(51)
+HANDLE_OTHER_INST(51, ICmp   , ICmpInst    ,    2)  // Integer comparison instruction
+HANDLE_OTHER_INST(52, FCmp   , FCmpInst    ,    5)  // Floating point comparison instr.
+HANDLE_OTHER_INST(53, PHI    , PHINode     ,    2)  // PHI node instruction
+HANDLE_OTHER_INST(54, Call   , CallInst    ,    2)  // Call a function
+HANDLE_OTHER_INST(55, Select , SelectInst  ,    2)  // select instruction
+HANDLE_OTHER_INST(56, UserOp1, Instruction ,    2)  // May be used internally in a pass
+HANDLE_OTHER_INST(57, UserOp2, Instruction ,    2)  // Internal to passes only
+HANDLE_OTHER_INST(58, VAArg  , VAArgInst   ,    2)  // vaarg instruction
+HANDLE_OTHER_INST(59, ExtractElement, ExtractElementInst ,      2)// extract from vector
+HANDLE_OTHER_INST(60, InsertElement, InsertElementInst ,        2)  // insert into vector
+HANDLE_OTHER_INST(61, ShuffleVector, ShuffleVectorInst ,        2)  // shuffle two vectors.
+HANDLE_OTHER_INST(62, ExtractValue, ExtractValueInst   ,        2)// extract from aggregate
+HANDLE_OTHER_INST(63, InsertValue, InsertValueInst ,            2)  // insert into aggregate
+HANDLE_OTHER_INST(64, LandingPad, LandingPadInst ,              2)  // Landing pad instruction.
+  LAST_OTHER_INST(64)
+
+//Custom instructions
+HANDLE_OTHER_INST(65, BB, BBInst ,      2)  // Start node
+HANDLE_OTHER_INST(66, G, GInst ,        2)  // Gaurd function
+HANDLE_OTHER_INST(67, FAKEIN, FAKEINInst ,      2)  // FAKE IN function
+HANDLE_OTHER_INST(68, FAKEOUT, FAKEOUTInst ,    2)  // FAKE OUT function
+HANDLE_OTHER_INST(69, END    , ENDInst,         2)  // END NODE
+HANDLE_OTHER_INST(70, Nop    , NopInst,         2)  // Nop NODE
+

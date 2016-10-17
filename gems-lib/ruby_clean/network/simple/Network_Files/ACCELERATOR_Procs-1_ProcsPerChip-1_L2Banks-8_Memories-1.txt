@@ -1,0 +1,18 @@
+
+processors:1
+procs_per_chip:1
+L2banks:8
+memories:1
+bw_unit:10000
+
+ext_node:L1Cache:0 int_node:0 link_latency:1 bw_multiplier:64
+ext_node:L2Cache:0 int_node:0 link_latency:1 bw_multiplier:64
+ext_node:L2Cache:1 int_node:0 link_latency:1 bw_multiplier:64
+ext_node:L2Cache:2 int_node:0 link_latency:1 bw_multiplier:64
+ext_node:L2Cache:3 int_node:0 link_latency:1 bw_multiplier:64
+ext_node:L2Cache:4 int_node:0 link_latency:1 bw_multiplier:64
+ext_node:L2Cache:5 int_node:0 link_latency:1 bw_multiplier:64
+ext_node:L2Cache:6 int_node:0 link_latency:1 bw_multiplier:64
+ext_node:L2Cache:7 int_node:0 link_latency:1 bw_multiplier:64
+ext_node:Directory:0 int_node:0 link_latency:1 bw_multiplier:10
+

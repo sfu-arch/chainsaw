@@ -1,0 +1,7 @@
+#Makefile.include for the simple network
+PREF_VPATH := PREFETCHER/
+PREF_SRC_CPP = \
+	GenericPrefetcher.C \
+	Prefetcher.C \
+	AMPMPrefetcher.C \
+

@@ -1,0 +1,8 @@
+include(ExternalProject)
+ExternalProject_Add(sim-ruby
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/gems-lib/ruby_clean
+    CONFIGURE_COMMAND ""
+    PREFIX ${CMAKE_CURRENT_BINARY_DIR}/ruby
+    BUILD_COMMAND make -C ${CMAKE_SOURCE_DIR}/gems-lib/ruby_clean PROTOCOL=MESI_CMP_directory_m  NOTESTER=1 DEBUG=0
+    INSTALL_COMMAND ""
+)

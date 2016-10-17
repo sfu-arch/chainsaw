@@ -1,0 +1,17 @@
+from components import register_components
+
+register_components('pmppc-components')
+register_components('ppc405gp-components')
+register_components('ppc440gp-components')
+register_components('ppc-simple-components')
+register_components('ppc64-simple-components')
+register_components('power6-simple-components')
+register_components('ppc-mv64360-components')
+register_components('rad750-components')
+register_components('fsp1-components')
+register_components('mpc8540-components')
+register_components('mpc8548-components')
+register_components('mpc8641-components')
+register_components('mpc8260-components')
+register_components('cpp8260-components')
+register_components('blue-logic-components')

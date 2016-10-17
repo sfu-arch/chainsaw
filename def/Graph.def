@@ -1,0 +1,13 @@
+/* Graph decomposition parameters 
+ This is amirali test to see
+ */
+
+param<BREAK_LIVE_IN,    0>
+param<BREAK_LIVE_OUT,   0>
+param<MERGE,            0>
+param<LIVE_IN_LIMIT,    2>
+param<FUSE,             0>
+param<MAX_NUM_CHAIN,    700>
+param<MAX_LIVE_OUT,     2>
+param<MAX_LIVE_IN,      2>
+param<BLOCK_LIMIT,      3>

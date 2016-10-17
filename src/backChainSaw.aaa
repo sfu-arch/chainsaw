@@ -1,0 +1,162 @@
+#include <boost/filesystem.hpp>
+#include <boost/program_options.hpp>
+
+#include "common.hpp"
+#include "Parameter.hpp"
+#include "Graph.hpp"
+#include "Core.hpp"
+
+//#include "macsim.h"
+
+using namespace boost; using namespace std;
+using namespace boost::filesystem;
+namespace po = boost::program_options;
+
+
+int
+main(int argc, char* argv[]){
+
+    //PRINT(cout, graph_param_path);
+
+    string m_file_path;
+    string m_memory_path;
+    uint32_t m_lane_number;
+    bool m_print_log;
+    path p;
+    path p_m;
+
+    //Processing program input
+    try {
+
+        po::options_description desc("Usage: chain [Program's options] <input_file>\n"
+                "Chain's options:");
+        desc.add_options()
+            ("help", "Display this help and exit")
+            ("input-file,i", po::value<string>(&m_file_path)->required(),
+             "Input file [should be in dot format]")
+            ("memory-file,m", po::value<string>(&m_memory_path),
+             "Memory file [should be in gz format]")
+            ("lane-number,n", po::value<uint32_t>(&m_lane_number)->default_value(4),
+             "Number of lanes")
+            ("log", po::value<bool>(&m_print_log)->default_value(false),
+             "Printing log into logfile")
+        ;
+
+        po::variables_map vm;        
+        po::store(po::parse_command_line(argc, argv, desc), vm);
+
+        if (vm.count("help")) {
+            cout << desc << "\n";
+            return 0;
+        }
+
+        if (vm.count("input-file")) {
+            cout << "input file was set to " 
+                 << vm["input-file"].as<string>() << ".\n";
+            p = vm["input-file"].as<string>();
+            if (p.extension() != ".dot") {
+                cerr << "DOT FILE is needed" << endl;
+            }
+        }
+        if (vm.count("memory-file")) {
+            cout << "memory file was set to " 
+                 << vm["memory-file"].as<string>() << ".\n";
+            p_m = vm["memory-file"].as<string>();
+            if (p_m.extension() != ".out.gz") 
+                cerr << "GZ FILE is needed" << endl;
+
+        }
+        if (vm.count("lane-number")){
+            cout << "Number of lanes set to: "
+                << vm["lane-number"].as<uint32_t>() << ".\n";
+        }
+        if (vm.count("log")){
+            cout << "Printing log set to: "
+                << vm["log"].as<bool>() << ".\n";
+        }
+
+        po::notify(vm);    
+    }
+    catch(std::exception& e) {
+        cerr << "error: " << e.what() << "\n";
+        return 1;
+    }
+    catch(...) {
+        cerr << "Exception of unknown type!\n";
+    }
+
+
+    //ifstream input_file(p.c_str(),ios::in);
+    //assert(input_file.is_open() && "Error! File couldn't open");
+
+    if(m_print_log){
+
+        //Redirecting standard output to file
+        stringstream m_temp;
+        m_temp << "output/" << p.stem().c_str() << "-log.log";
+        std::ofstream out(m_temp.str());
+        std::cout.rdbuf(out.rdbuf());
+    }
+
+    //Get iteration numbers
+    std::ifstream input_file(p_m.c_str(), std::ios_base::in | std::ios_base::binary);
+
+    boost::iostreams::filtering_streambuf<boost::iostreams::input> inbuf;
+    inbuf.push(boost::iostreams::gzip_decompressor());
+    inbuf.push(input_file);
+
+    //Convert streambuf to istream
+    std::istream instream(&inbuf);
+
+    std::string line;
+
+    std::set<uint32_t> iter_set;
+
+    regex mem_parse("^([[:digit:]]+),([^,]*),([[:digit:]]+),([[:digit:]]+).*$");
+    smatch match;
+    while(std::getline(instream, line)){
+        regex_search(line, match, mem_parse);
+        uint32_t iter = std::stoi(match[1]);
+        iter_set.insert(iter);
+    }
+    
+
+   
+    auto m_ruby = new O3sim_ruby(1, 1,4,1, true, true, 1 ,"","med","/dev/null");
+    m_ruby->initialize();
+
+    Core testCore(m_lane_number,p_m.c_str(), m_ruby);
+
+    testCore.m_graph.initialize(p.c_str(), p.stem().c_str());
+
+    testCore.memoryInitialize();
+
+    uint32_t cycle_cnt = 0;
+    for(auto& num_iter: iter_set){
+
+        testCore.buildChains(testCore.m_graph.Chains,
+                    testCore.m_graph.vertex_to_Chunk, testCore.m_graph.dependencies, testCore.m_graph.un_dependencies,
+                    testCore.m_graph.un_reverse_mapping, testCore.m_graph.chain_to_dependencies,testCore.m_graph.orig_map, testCore.m_graph.comp_graph);
+
+        testCore.coreSetIter(num_iter);
+
+        testCore.initialize();
+
+        while(!testCore.run_a_cycle()){
+            cycle_cnt++;
+            cout << "Cycle: " << cycle_cnt << endl;
+        }
+    }
+
+
+    cout << "*********************" << endl;
+    cout << "TOTAL CYCLE: " << cycle_cnt << endl;
+    cout << "*********************" << endl;
+
+
+
+
+
+    return 0;
+}
+
