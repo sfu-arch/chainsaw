@@ -174,3 +174,5 @@ In the `output` folder you can find the simulation statics:
 
 ## Contributors
  - Amirali Sharifian (Simon Fraser University)
+ - Apala Guha (Simon Fraser University)
+ - Snehasish Kumar (Simon Fraser University)
