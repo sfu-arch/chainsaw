@@ -26,7 +26,7 @@ Chainsaw-Sim is a cycle accurate simulator that models the host core, the _Chain
 
         $ cd ChainSaw-Sim
         $ mkdir build && cd build
-        $ cmake ../ -DBOOST_ROOT=/home/amiralis/Tools/boost_1_61_0/ -DCMAKE_BUILD_TYPE=Release
+        $ cmake ../ -DBOOST_ROOT=<BOOST_ROOT_DIR>/boost_1_61_0/ -DCMAKE_BUILD_TYPE=Release
         $ make && make install
 
 4. **Test:** the simulator
