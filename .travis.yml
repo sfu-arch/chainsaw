@@ -26,6 +26,7 @@ before_script:
 - ./bootstrap
 - ./b2
 - ./b2 install
+- cd ..
 
 - cmake .
 script:
