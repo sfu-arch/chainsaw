@@ -23,12 +23,15 @@ before_script:
 - wget https://sourceforge.net/projects/boost/files/boost/1.61.0/boost_1_61_0.tar.gz
 - tar xf boost_1_61_0.tar.gz
 - cd boost_1_61_0
-- ./bootstrap.sh
-- ./b2 -j4
+- mkdir build
+- BOOST_PATH=${PWD}
+- ./bootstrap.sh --prefix=${PWD}/build
+- ./b2 --prefix=${PWD}/build -j4
 - ./b2 install
 - cd ..
 
-- cmake .
+- echo $BOOST_PATH
+- cmake -DBOOST_ROOT=$BOOST_PATH .
 script:
 - make VERBOSE=1
 branches:
