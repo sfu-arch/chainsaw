@@ -12,8 +12,12 @@ before_script:
 - g++ --version
 - wget http://releases.llvm.org/3.8.1/clang+llvm-3.8.1-x86_64-linux-gnu-ubuntu-14.04.tar.xz
 - tar xf clang+llvm-3.8.1-x86_64-linux-gnu-ubuntu-14.04.tar.xz
-- export PATH=${PWD}/clang+llvm-3.8.1-x86_64-linux-gnu-ubuntu-14.04/bin:$PATH
+- wget https://sourceforge.net/projects/boost/files/boost/1.61.0/boost_1_61_0.tar.gz
+- tar xf boost_1_61_0.tar.gz
+- export PATH=${PWD}/boost_1_61_0/bin:${PWD}/clang+llvm-3.8.1-x86_64-linux-gnu-ubuntu-14.04/bin:$PATH
+- export LD_LIBRARY_PATH=${PWD}/boost_1_61_0/lib:${PWD}/clang+llvm-3.8.1-x86_64-linux-gnu-ubuntu-14.04/lib:$LD_LIBRARY_PATH
 - cmake -DLLVM_DIR=clang+llvm-3.8.1-x86_64-linux-gnu-ubuntu-14.04/share/llvm/cmake/ .
+- cmake -DBOOST_ROOT=boost_1_61_0/ .
 script:
 - make VERBOSE=1
 branches:
@@ -27,5 +31,6 @@ addons:
     - gcc-5
     - g++-5
     - cmake 
+    - icu
 notifications:
   email: false
