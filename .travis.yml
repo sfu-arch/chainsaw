@@ -15,12 +15,17 @@ addons:
     - gcc-5
     - g++-5
     - cmake 
-    - libboost1.55-all-dev
+
 before_script: 
 - sudo unlink /usr/bin/gcc && sudo ln -s /usr/bin/gcc-5 /usr/bin/gcc
 - sudo unlink /usr/bin/g++ && sudo ln -s /usr/bin/g++-5 /usr/bin/g++
-- locate boost
-- g++ --version
+
+- wget https://sourceforge.net/projects/boost/files/boost/1.61.0/boost_1_61_0.tar.gz\
+- tar xf boost_1_61_0.tar.gz
+- cd boost_1_61_0
+- ./bootstrap
+- ./b2
+- ./b2 install
 
 - cmake .
 script:
