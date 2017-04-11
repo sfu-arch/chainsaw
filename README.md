@@ -1,4 +1,6 @@
 # Chainsaw-Sim:   A Chain simulator
+[![Build Status](https://travis-ci.org/sfu-arch/chainsaw.svg?branch=master)](https://travis-ci.org/sfu-arch/chainsaw.svg?branch=master)
+
 Chainsaw-Sim is a cycle accurate simulator that models the host core, the _Chainsaw_ accelerator, and spatial fabrics of parameterizable size.
 
 ## Dependencies
@@ -20,7 +22,7 @@ Chainsaw-Sim is a cycle accurate simulator that models the host core, the _Chain
 
 2. **Clone** the tools from the `Chainsaw-Sim` GitHub repository:
 
-        $ git clone git@github.com:amsharifian/ChainSaw-Sim.git
+        $ git clone git@github.com:sfu-arch/chainsaw.git
 
 3. **Compile:** _Simulator_ with CMake:
 
