@@ -3,6 +3,20 @@
 
 Chainsaw-Sim is a cycle accurate simulator that models the host core, the _Chainsaw_ accelerator, and spatial fabrics of parameterizable size.
 
+### Citation
+
+```
+	@inproceedings{sharifian2016chainsaw,
+		title={Chainsaw: Von-neumann accelerators to leverage fused instruction chains},
+		author={Sharifian, Amirali and Kumar, Snehasish and Guha, Apala and Shriraman, Arrvindh},
+		booktitle={Microarchitecture (MICRO), 2016 49th Annual IEEE/ACM International Symposium on},
+		pages={1--14},
+		year={2016},
+		organization={IEEE}
+	}
+```
+
+
 ## Dependencies
 * 1- Boost 1.61 (or higher)
 * 2- CMake 2.8.8 (or higher)
