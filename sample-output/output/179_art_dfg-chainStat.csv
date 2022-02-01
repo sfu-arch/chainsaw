@@ -1,0 +1,8 @@
+level, ilp
+0,1
+1,9
+2,4
+3,4
+4,2
+num_ch, num_block, avg_ch_length, max_ch_length, ILP, MAX_ILP, max_level, max_mlp, inter_com, intra_com
+20, 15, 2.65, 7, 4, 9, 4, 5, 33, 34

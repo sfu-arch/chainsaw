@@ -1,0 +1,22 @@
+{ "Chains" : [ 
+{ "chain_id" : 0, "block_id" : 0, "size" : 1, "live_in" : 0, "live_out" : 19, "fan_in" : 0, "fan_out" : 19, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 0, "nodes" : ["NOP(0)"]},
+{ "chain_id" : 1, "block_id" : 14, "size" : 3, "live_in" : 3, "live_out" : 1, "fan_in" : 3, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 3, "nodes" : ["NOP(2)","NOP(3)","NOP(49)"]},
+{ "chain_id" : 2, "block_id" : 9, "size" : 2, "live_in" : 2, "live_out" : 1, "fan_in" : 2, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 3, "nodes" : ["NOP(10)","NOP(18)"]},
+{ "chain_id" : 3, "block_id" : 1, "size" : 2, "live_in" : 1, "live_out" : 1, "fan_in" : 1, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 1, "nodes" : ["NOP(20)","NOP(21)"]},
+{ "chain_id" : 4, "block_id" : 2, "size" : 2, "live_in" : 1, "live_out" : 1, "fan_in" : 1, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 1, "nodes" : ["NOP(22)","NOP(23)"]},
+{ "chain_id" : 5, "block_id" : 3, "size" : 1, "live_in" : 1, "live_out" : 1, "fan_in" : 1, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 1, "nodes" : ["NOP(24)"]},
+{ "chain_id" : 6, "block_id" : 4, "size" : 1, "live_in" : 1, "live_out" : 1, "fan_in" : 1, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 1, "nodes" : ["NOP(25)"]},
+{ "chain_id" : 7, "block_id" : 5, "size" : 1, "live_in" : 1, "live_out" : 1, "fan_in" : 1, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 1, "nodes" : ["NOP(26)"]},
+{ "chain_id" : 8, "block_id" : 6, "size" : 1, "live_in" : 1, "live_out" : 0, "fan_in" : 1, "fan_out" : 0, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 1, "nodes" : ["NOP(19)"]},
+{ "chain_id" : 9, "block_id" : 13, "size" : 7, "live_in" : 3, "live_out" : 1, "fan_in" : 3, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 2, "nodes" : ["NOP(27)","NOP(28)","NOP(29)","NOP(30)","NOP(31)","NOP(32)","NOP(41)"]},
+{ "chain_id" : 10, "block_id" : 9, "size" : 3, "live_in" : 2, "live_out" : 1, "fan_in" : 2, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 2, "nodes" : ["NOP(33)","NOP(34)","NOP(35)"]},
+{ "chain_id" : 11, "block_id" : 12, "size" : 4, "live_in" : 3, "live_out" : 0, "fan_in" : 3, "fan_out" : 0, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 3, "nodes" : ["NOP(16)","NOP(36)","NOP(37)","NOP(38)"]},
+{ "chain_id" : 12, "block_id" : 8, "size" : 6, "live_in" : 2, "live_out" : 2, "fan_in" : 2, "fan_out" : 2, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 2, "nodes" : ["NOP(5)","NOP(6)","NOP(7)","NOP(8)","NOP(39)","NOP(40)"]},
+{ "chain_id" : 13, "block_id" : 9, "size" : 4, "live_in" : 2, "live_out" : 0, "fan_in" : 2, "fan_out" : 0, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 4, "nodes" : ["NOP(11)","NOP(12)","NOP(13)","NOP(14)"]},
+{ "chain_id" : 14, "block_id" : 10, "size" : 3, "live_in" : 3, "live_out" : 0, "fan_in" : 3, "fan_out" : 0, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 4, "nodes" : ["NOP(4)","NOP(42)","NOP(43)"]},
+{ "chain_id" : 15, "block_id" : 7, "size" : 2, "live_in" : 1, "live_out" : 1, "fan_in" : 1, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 1, "nodes" : ["NOP(9)","NOP(17)"]},
+{ "chain_id" : 16, "block_id" : 8, "size" : 2, "live_in" : 1, "live_out" : 1, "fan_in" : 1, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 1, "nodes" : ["NOP(44)","NOP(45)"]},
+{ "chain_id" : 17, "block_id" : 11, "size" : 4, "live_in" : 3, "live_out" : 0, "fan_in" : 3, "fan_out" : 0, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 3, "nodes" : ["NOP(15)","NOP(46)","NOP(47)","NOP(48)"]},
+{ "chain_id" : 18, "block_id" : 2, "size" : 3, "live_in" : 2, "live_out" : 1, "fan_in" : 2, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 2, "nodes" : ["NOP(1)","NOP(50)","NOP(51)"]},
+{ "chain_id" : 19, "block_id" : 9, "size" : 1, "live_in" : 1, "live_out" : 1, "fan_in" : 1, "fan_out" : 1, "LD" : 0, "ST" : 0, "ALLOCA" : 0, "other" : 0, "level" : 1, "nodes" : ["NOP(52)"]}
+ ]}
