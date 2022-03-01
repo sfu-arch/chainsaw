@@ -1,0 +1,7 @@
+digraph G {
+1 [label="BB(1)", opcode="BB", color=red];
+2 [label="GetElementPtr(2)", opcode="GetElementPtr", color=black];
+3 [label="Arg(1000001)", opcode="Arg", color=blue];
+1->2 [color=blue];
+2->3 [color = blue];
+}
