@@ -210,7 +210,7 @@ def BreakLoops(ng, cg, d):
 	while change == True:
 		change = False
 
-		cg.remove_edges_from(nx.edges(cg))
+		cg.remove_edges_from(list(nx.edges(cg)))
 
 		for (u,v) in nx.edges(ng):
 			if ng.nodes[u]['cid'] == ng.nodes[v]['cid']:

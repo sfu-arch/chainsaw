@@ -65,9 +65,9 @@ def AddEdge(ng, src, dst, style=''):
 	#print 'added edge', src, dst
 
 def RemoveNode(ng, n):
-	for (src,dst) in nx.edges(ng, n):
+	for (src,dst) in list(nx.edges(ng, n)):
 		RemoveEdge(ng, src, dst)
-	for e in nx.all_neighbors(ng, n):
+	for e in list(nx.all_neighbors(ng, n)):
 		RemoveEdge(ng, e, n)
 	ng.remove_node(n)
 
@@ -110,7 +110,7 @@ def SetColor(ng, n, rank):
 
 def ExpandGEP(ng):
 	rank = 0
-	for n in nx.nodes(ng):
+	for n in list(nx.nodes(ng)):
 		if ng.nodes[n]['opcode'] != 'GetElementPtr':
 			continue
 		#print ng.nodes[n]
@@ -138,7 +138,7 @@ def ExpandGEP(ng):
 			AddEdge(ng, n2, add)
 			l.append(add)
 		add = l[0]
-		for (src,dst) in nx.edges(ng, n):
+		for (src,dst) in list(nx.edges(ng, n)):
 			AddEdge(ng, add, dst)
 			RemoveEdge(ng, n, dst)
 		RemoveNode(ng, n)
@@ -146,7 +146,7 @@ def ExpandGEP(ng):
 
 
 def RemoveDataNodes(ng):
-	for n in nx.nodes(ng):
+	for n in list(nx.nodes(ng)):
 		if ng.nodes[n]['color'] == 'black':
 			continue
 		if ng.nodes[n]['color'] == 'red':
@@ -311,6 +311,7 @@ def Dilworth(ng):
 def CheckStartNode(ng):
     count = 0
     for n in nx.nodes(ng):
+        print(n)
         if ng.nodes[n]['opcode'] == 'BB':
             count += 1
         if count > 1:
@@ -323,14 +324,18 @@ def BreakHeadNode(ng):
     # Getting list of ch IDs
     chdic = defaultdict(list)
     for n in nx.nodes(ng):
-        chdic[ng.nodes[n]['cid']].append(n)
+        if 'cid' in ng.nodes[n].keys():
+            chdic[ng.nodes[n]['cid']].append(n)
+        else:
+            lastcid = len(chdic)
+            ng.nodes[n]['cid'] = lastcid
+            chdic[ng.nodes[n]['cid']].append(n)
         if ng.nodes[n]['opcode'] == 'BB':
             headnode = n
             headcid  = ng.nodes[n]['cid']
-
     # Updating ch IDs
-    lastcid = len(chdic)
     for n in chdic[headcid]:
+        lastcid = len(chdic)
         if n != headnode:
             ng.nodes[n]['cid'] = lastcid
             SetColor(ng, n, lastcid)

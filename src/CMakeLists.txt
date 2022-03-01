@@ -35,6 +35,8 @@ add_library(chainS SHARED ${SOURCES})
 
 #install(TARGETS chainSaw 
 install(TARGETS chainSaw chainS
-    RUNTIME DESTINATION ${CMAKE_BINARY_DIR}/bin
-    LIBRARY DESTINATION ${CMAKE_BINARY_DIR}/lib)
+     RUNTIME DESTINATION ${CMAKE_BINARY_DIR}/bin
+     LIBRARY DESTINATION ${CMAKE_BINARY_DIR}/lib)
 
+#add_executable(graphbuilder graphbuilder.cpp newGraph.cpp Parameter.cpp Instruction.cpp)
+#target_link_libraries(graphbuilder ${Boost_LIBRARIES})

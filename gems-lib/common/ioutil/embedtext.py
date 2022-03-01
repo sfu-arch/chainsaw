@@ -43,12 +43,12 @@ class embedText:
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print len(sys.argv)
-        print "usage:", sys.argv[0], " input-file output-file varname"
+        print(len(sys.argv))
+        print("usage:", sys.argv[0], " input-file output-file varname")
         sys.exit(1)
     inputfile = sys.argv[1]
     outputfile = sys.argv[2]
     varname   = sys.argv[3]
-    print "generating embedded text file: %s from %s\n" % (outputfile, inputfile)
+    print("generating embedded text file: %s from %s\n" % (outputfile, inputfile))
     inc = embedText( inputfile )
     inc.write( outputfile, varname )

@@ -1,19 +1,13 @@
 strict digraph "" {
-	graph [bb="0,0,180,162"];
+	graph [bb="0,0,132,114"];
 	node [label="\N"];
-	1	[height=0.5,
-		pos="75,78",
-		width=0.75];
-	4	[height=0.5,
-		pos="147,138",
-		width=0.75];
-	3	[height=0.5,
-		pos="153,60",
+	0	[height=0.5,
+		pos="27,36",
 		width=0.75];
 	2	[height=0.5,
-		pos="69,144",
+		pos="99,96",
 		width=0.75];
-	0	[height=0.5,
-		pos="27,18",
+	1	[height=0.5,
+		pos="105,18",
 		width=0.75];
 }

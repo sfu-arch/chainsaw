@@ -24,7 +24,8 @@ def build_chain_dic_helper(ng):
     # Building chain dicitonary
     chdic = defaultdict(list)
     for n in nx.nodes(ng):
-        chdic[ng.nodes[n]['cid']].append(n)
+        if 'cid' in ng.nodes[n]:
+            chdic[ng.nodes[n]['cid']].append(n)
         if ng.nodes[n]['opcode'] == 'BB':
             headnode = n
             headcid  = ng.nodes[n]['cid']
